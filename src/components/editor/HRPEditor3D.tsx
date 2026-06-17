@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { useMemo, useRef, useEffect } from 'react';
+import { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { useHRPStore } from '../../stores/hrpStore';
 import { dist } from '../../utils/coordinate';
 
@@ -10,7 +11,8 @@ interface HRPEditor3DProps {
 
 export function HRPEditor3D({ robotX, robotZ }: HRPEditor3DProps) {
   const path = useHRPStore((s) => s.path);
-  const connectorLineRef = useRef<THREE.Line>(null);
+  const connectorRef = useRef<THREE.Line>(null);
+  const dashOffset = useRef(0);
 
   const linePositions = useMemo(() => {
     return new Float32Array(path.flatMap((p) => [p.x, 0.05, p.z]));
@@ -29,11 +31,17 @@ export function HRPEditor3D({ robotX, robotZ }: HRPEditor3DProps) {
     return d > 1 ? '#fdd835' : '#4caf50';
   }, [path, robotX, robotZ]);
 
-  useEffect(() => {
-    if (connectorLineRef.current) {
-      connectorLineRef.current.computeLineDistances();
+  useFrame((_, delta) => {
+    if (connectorRef.current) {
+      const mat = connectorRef.current.material as THREE.LineDashedMaterial;
+      if (mat.isLineDashedMaterial) {
+        dashOffset.current -= delta * 0.5;
+        mat.dashOffset = dashOffset.current;
+        mat.needsUpdate = true;
+      }
+      connectorRef.current.computeLineDistances();
     }
-  }, [connectorPositions, connectorColor]);
+  });
 
   if (path.length === 0) return null;
 
@@ -55,7 +63,7 @@ export function HRPEditor3D({ robotX, robotZ }: HRPEditor3DProps) {
         </line>
       )}
       {connectorPositions && (
-        <line ref={connectorLineRef} key={`conn-${connectorColor}`}>
+        <line ref={connectorRef} key={`conn-${geometryKey}-${connectorColor}`}>
           <bufferGeometry>
             <bufferAttribute
               attach="attributes-position"

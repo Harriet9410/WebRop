@@ -14,6 +14,7 @@ interface HRZState {
   closeZone: () => void;
   cancelDrawing: () => void;
   removeZone: (id: string) => void;
+  moveVertex: (zoneId: string, vertexIndex: number, newPos: Vec2) => void;
   loadZones: (zones: HRZZone[]) => void;
   clearAll: () => void;
 }
@@ -58,6 +59,15 @@ export const useHRZStore = create<HRZState>((set, get) => ({
 
   removeZone: (id) =>
     set((s) => ({ zones: s.zones.filter((z) => z.id !== id) })),
+
+  moveVertex: (zoneId, vertexIndex, newPos) =>
+    set((s) => ({
+      zones: s.zones.map((z) =>
+        z.id === zoneId
+          ? { ...z, vertices: z.vertices.map((v, i) => (i === vertexIndex ? newPos : v)) }
+          : z
+      ),
+    })),
 
   loadZones: (zones) => set({ zones }),
 

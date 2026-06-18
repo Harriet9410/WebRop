@@ -8,7 +8,7 @@ export function HRZEditor3D() {
   return (
     <group>
       {zones.map((zone) => (
-        <HRZPolygon key={zone.id} vertices={zone.vertices} closed={true} />
+        <HRZPolygon key={zone.id} zoneId={zone.id} vertices={zone.vertices} closed={true} />
       ))}
       {currentVertices.length > 0 && (
         <HRZPolygon

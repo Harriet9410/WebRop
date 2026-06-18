@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { useMemo, useRef, useCallback } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useHRPStore, speedToColor, SegmentSpeed } from '../../stores/hrpStore';
+import { useDragStore } from '../../stores/dragStore';
 import { dist, Vec2 } from '../../utils/coordinate';
 
 interface HRPEditor3DProps {
@@ -37,6 +38,7 @@ export function HRPEditor3D({ robotX, robotZ }: HRPEditor3DProps) {
   const selectedSegment = useHRPStore((s) => s.selectedSegment);
   const toggleSegmentSpeed = useHRPStore((s) => s.toggleSegmentSpeed);
   const setSelectedSegment = useHRPStore((s) => s.setSelectedSegment);
+  const dragInfo = useDragStore((s) => s.dragInfo);
   const connectorRef = useRef<any>(null);
   const dashOffset = useRef(0);
 
@@ -110,12 +112,15 @@ export function HRPEditor3D({ robotX, robotZ }: HRPEditor3DProps) {
           />
         </line>
       )}
-      {path.map((p, i) => (
-        <mesh key={i} position={[p.x, 0.05, p.z]}>
-          <sphereGeometry args={[0.05, 12, 12]} />
-          <meshBasicMaterial color={i === 0 ? '#4caf50' : '#81c784'} />
-        </mesh>
-      ))}
+      {path.map((p, i) => {
+        const isDragged = dragInfo?.type === 'hrp' && dragInfo?.vertexIndex === i;
+        return (
+          <mesh key={i} position={[p.x, isDragged ? 0.12 : 0.05, p.z]}>
+            <sphereGeometry args={[isDragged ? 0.12 : 0.07, 12, 12]} />
+            <meshBasicMaterial color={isDragged ? '#ffffff' : i === 0 ? '#4caf50' : '#81c784'} />
+          </mesh>
+        );
+      })}
     </group>
   );
 }

@@ -10,15 +10,18 @@ import { NavPathVisual } from './NavPathVisual';
 import { MapEditPreview } from './MapEditPreview';
 import { MiniMapBridge, MiniMapOverlay } from './MiniMap';
 import type { AppMode } from '../ui/ModeSelector';
-import { useHRZStore } from '../../stores/hrzStore';
+import { useHRZStore, HRZZone } from '../../stores/hrzStore';
 import { useHRPStore } from '../../stores/hrpStore';
 import { useRobotPoseStore } from '../../stores/robotPoseStore';
 import { useRosStore } from '../../stores/rosStore';
 import { useWaypointStore, Waypoint } from '../../stores/waypointStore';
 import { useMapEditorStore } from '../../stores/mapEditorStore';
+import { useDragStore } from '../../stores/dragStore';
 import { mockPaintBrush, mockPaintRect, mockPlaceRobot } from '../../ros/mock';
 import { publishNavGoal } from '../../ros/connection';
 import { Vec2, dist } from '../../utils/coordinate';
+
+const VERTEX_HIT_RADIUS = 0.15;
 
 function SceneEvents({ mode }: { mode: AppMode }) {
   const { gl, camera } = useThree();
@@ -26,6 +29,11 @@ function SceneEvents({ mode }: { mode: AppMode }) {
   const groundPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
   const lastPathPoint = useRef<Vec2 | null>(null);
   const isDrawingMap = useRef(false);
+  const dragState = useRef<{
+    type: 'hrz' | 'hrp';
+    zoneId?: string;
+    vertexIndex: number;
+  } | null>(null);
 
   const getScenePoint = useCallback(
     (e: PointerEvent): Vec2 | null => {
@@ -51,9 +59,46 @@ function SceneEvents({ mode }: { mode: AppMode }) {
       if (!pt) return;
 
       if (mode === 'hrz') {
-        useHRZStore.getState().addVertex(pt);
+        const store = useHRZStore.getState();
+        if (!store.isDrawing) {
+          let closestDist = VERTEX_HIT_RADIUS;
+          let closestZone: HRZZone | null = null;
+          let closestIdx = -1;
+          for (const zone of store.zones) {
+            for (let vi = 0; vi < zone.vertices.length; vi++) {
+              const d = dist(pt, zone.vertices[vi]);
+              if (d < closestDist) {
+                closestDist = d;
+                closestZone = zone;
+                closestIdx = vi;
+              }
+            }
+          }
+          if (closestZone && closestIdx >= 0) {
+            dragState.current = { type: 'hrz', zoneId: closestZone.id, vertexIndex: closestIdx };
+            useDragStore.getState().setDragInfo({ type: 'hrz', zoneId: closestZone.id, vertexIndex: closestIdx });
+            return;
+          }
+        }
+        store.addVertex(pt);
       } else if (mode === 'hrp') {
         const store = useHRPStore.getState();
+        if (!store.isDrawing && store.path.length > 0) {
+          let closestDist = VERTEX_HIT_RADIUS;
+          let closestIdx = -1;
+          for (let i = 0; i < store.path.length; i++) {
+            const d = dist(pt, store.path[i]);
+            if (d < closestDist) {
+              closestDist = d;
+              closestIdx = i;
+            }
+          }
+          if (closestIdx >= 0) {
+            dragState.current = { type: 'hrp', vertexIndex: closestIdx };
+            useDragStore.getState().setDragInfo({ type: 'hrp', vertexIndex: closestIdx });
+            return;
+          }
+        }
         store.startDrawing();
         store.addPoint(pt);
         lastPathPoint.current = pt;
@@ -90,6 +135,24 @@ function SceneEvents({ mode }: { mode: AppMode }) {
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      const pt = getScenePoint(e);
+      if (!pt) return;
+
+      if (dragState.current) {
+        if (e.buttons !== 1) {
+          dragState.current = null;
+          useDragStore.getState().setDragInfo(null);
+          return;
+        }
+        const ds = dragState.current;
+        if (ds.type === 'hrz') {
+          useHRZStore.getState().moveVertex(ds.zoneId!, ds.vertexIndex, pt);
+        } else if (ds.type === 'hrp') {
+          useHRPStore.getState().movePoint(ds.vertexIndex, pt);
+        }
+        return;
+      }
+
       if (mode === 'hrp') {
         const store = useHRPStore.getState();
         if (!store.isDrawing) return;
@@ -113,6 +176,12 @@ function SceneEvents({ mode }: { mode: AppMode }) {
 
     const onPointerUp = (e: PointerEvent) => {
       if (e.button !== 0) return;
+
+      if (dragState.current) {
+        dragState.current = null;
+        useDragStore.getState().setDragInfo(null);
+        return;
+      }
 
       if (mode === 'hrp') {
         const store = useHRPStore.getState();

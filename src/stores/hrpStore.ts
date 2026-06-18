@@ -37,6 +37,7 @@ interface HRPState {
   toggleSegmentSpeed: (index: number) => void;
   setSelectedSegment: (index: number | null) => void;
   setBlockedSegments: (blocked: boolean[]) => void;
+  movePoint: (index: number, newPos: Vec2) => void;
 }
 
 export const useHRPStore = create<HRPState>((set) => ({
@@ -85,4 +86,13 @@ export const useHRPStore = create<HRPState>((set) => ({
   setSelectedSegment: (index) => set({ selectedSegment: index }),
 
   setBlockedSegments: (blocked) => set({ blockedSegments: blocked }),
+
+  movePoint: (index, newPos) =>
+    set((s) => {
+      const newPath = [...s.path];
+      if (index >= 0 && index < newPath.length) {
+        newPath[index] = newPos;
+      }
+      return { path: newPath, blockedSegments: [] };
+    }),
 }));

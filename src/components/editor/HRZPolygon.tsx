@@ -1,15 +1,17 @@
 import * as THREE from 'three';
 import { useMemo } from 'react';
 import { Vec2 } from '../../utils/coordinate';
+import { useDragStore } from '../../stores/dragStore';
 
 interface HRZPolygonProps {
   vertices: Vec2[];
+  zoneId?: string;
   color?: string;
   opacity?: number;
   closed?: boolean;
 }
 
-export function HRZPolygon({ vertices, color = '#e53935', opacity = 0.3, closed = true }: HRZPolygonProps) {
+export function HRZPolygon({ vertices, zoneId, color = '#e53935', opacity = 0.3, closed = true }: HRZPolygonProps) {
   if (vertices.length === 0) return null;
 
   const linePositions = useMemo(() => {
@@ -23,6 +25,8 @@ export function HRZPolygon({ vertices, color = '#e53935', opacity = 0.3, closed 
   const lineCount = closed && vertices.length >= 3 ? vertices.length + 1 : vertices.length;
 
   const geometryKey = vertices.map((v) => `${v.x.toFixed(2)},${v.z.toFixed(2)}`).join('|');
+
+  const dragInfo = useDragStore((s) => s.dragInfo);
 
   return (
     <group>
@@ -45,12 +49,15 @@ export function HRZPolygon({ vertices, color = '#e53935', opacity = 0.3, closed 
           <lineBasicMaterial color={color} linewidth={2} />
         </line>
       )}
-      {vertices.map((v, i) => (
-        <mesh key={i} position={[v.x, 0.05, v.z]}>
-          <sphereGeometry args={[i === 0 ? 0.12 : 0.08, 16, 16]} />
-          <meshBasicMaterial color={i === 0 ? '#fdd835' : color} />
-        </mesh>
-      ))}
+      {vertices.map((v, i) => {
+        const isDragged = dragInfo?.type === 'hrz' && dragInfo?.zoneId === zoneId && dragInfo?.vertexIndex === i;
+        return (
+          <mesh key={i} position={[v.x, isDragged ? 0.12 : 0.05, v.z]}>
+            <sphereGeometry args={[i === 0 ? 0.12 : isDragged ? 0.14 : 0.08, 16, 16]} />
+            <meshBasicMaterial color={isDragged ? '#ffffff' : i === 0 ? '#fdd835' : color} />
+          </mesh>
+        );
+      })}
     </group>
   );
 }

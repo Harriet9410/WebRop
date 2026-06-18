@@ -100,11 +100,12 @@ function subscribeAll(): void {
     const m = msg as RosMsg_Odometry;
     const p = m.pose.pose.position;
     const q = m.pose.pose.orientation;
+    const rosYaw = quaternionToYaw(q.x, q.y, q.z, q.w);
     const scenePos = rosToScene(p.x, p.y);
     useRobotPoseStore.getState().setPose({
       x: scenePos.x,
       z: scenePos.z,
-      yaw: quaternionToYaw(q.x, q.y, q.z, q.w),
+      yaw: Math.PI / 2 - rosYaw,
     });
   });
 }
@@ -116,6 +117,7 @@ export function getRos(): Ros | null {
 export function publishNavGoal(x: number, z: number, yaw: number = 0): void {
   if (!ros) return;
   const rosPos = sceneToRos(x, z);
+  const rosYaw = Math.PI / 2 - yaw;
   const topic = new Topic({
     ros,
     name: '/move_base_simple/goal',
@@ -128,7 +130,7 @@ export function publishNavGoal(x: number, z: number, yaw: number = 0): void {
     },
     pose: {
       position: { x: rosPos.x, y: rosPos.y, z: 0 },
-      orientation: { x: 0, y: 0, z: Math.sin(yaw / 2), w: Math.cos(yaw / 2) },
+      orientation: { x: 0, y: 0, z: Math.sin(rosYaw / 2), w: Math.cos(rosYaw / 2) },
     },
   };
   topic.publish(msg as never);

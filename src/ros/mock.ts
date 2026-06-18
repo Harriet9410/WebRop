@@ -268,6 +268,17 @@ function planPath(targetX: number, targetZ: number): { x: number; z: number }[] 
   return planned;
 }
 
+function normalizeAngle(a: number): number {
+  while (a > Math.PI) a -= 2 * Math.PI;
+  while (a < -Math.PI) a += 2 * Math.PI;
+  return a;
+}
+
+const MAX_LINEAR_SPEED = 0.12;
+const MAX_ANGULAR_SPEED = 1.5;
+const ANGLE_THRESHOLD = 0.15;
+const ARRIVE_THRESHOLD = 0.04;
+
 function updateOdom() {
   if (smoothPath.length > 0 && pathIdx < smoothPath.length) {
     const target = smoothPath[pathIdx];
@@ -275,7 +286,7 @@ function updateOdom() {
     const dz = target.z - robotZ;
     const d = Math.sqrt(dx * dx + dz * dz);
 
-    if (d < 0.05) {
+    if (d < ARRIVE_THRESHOLD) {
       pathIdx++;
       if (pathIdx >= smoothPath.length) {
         addLog('Robot reached destination');
@@ -287,10 +298,27 @@ function updateOdom() {
         }
       }
     } else {
-      const speed = Math.min(0.08, d);
-      robotX += (dx / d) * speed;
-      robotZ += (dz / d) * speed;
-      robotYaw = Math.atan2(dx, -dz);
+      const targetYaw = Math.atan2(dx, -dz);
+      const angleError = normalizeAngle(targetYaw - robotYaw);
+      const absAngle = Math.abs(angleError);
+
+      let linearSpeed = 0;
+      let angularSpeed = 0;
+
+      if (absAngle > ANGLE_THRESHOLD) {
+        angularSpeed = Math.sign(angleError) * Math.min(MAX_ANGULAR_SPEED, absAngle * 3);
+        linearSpeed = MAX_LINEAR_SPEED * 0.1;
+      } else {
+        const turnFactor = 1 - absAngle / ANGLE_THRESHOLD;
+        linearSpeed = MAX_LINEAR_SPEED * (0.3 + 0.7 * turnFactor);
+        if (d < 0.3) linearSpeed *= d / 0.3;
+        angularSpeed = angleError * 2.0;
+      }
+
+      const dt = 0.1;
+      robotYaw = normalizeAngle(robotYaw + angularSpeed * dt);
+      robotX += Math.sin(robotYaw) * linearSpeed * dt;
+      robotZ -= Math.cos(robotYaw) * linearSpeed * dt;
     }
   }
 

@@ -3,7 +3,7 @@ import { ROSConnection } from '../ros/ROSConnection';
 import { ModeSelector, AppMode } from '../ui/ModeSelector';
 import { ActionPanel } from '../ui/ActionPanel';
 import { useRosStore } from '../../stores/rosStore';
-import { onMockLog, getMockLog } from '../../ros/mock';
+import { onMockLog, getMockLog, mockResetMap, mockClearMap } from '../../ros/mock';
 
 interface SidebarProps {
   mode: AppMode;
@@ -25,6 +25,8 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
         <ROSConnection />
       </div>
 
+      {isMock && <MapSelector />}
+
       <div className="p-3 border-b border-gray-700">
         <div className="text-xs text-gray-400 mb-1.5 font-medium">Mode</div>
         <ModeSelector mode={mode} onChange={onModeChange} />
@@ -41,6 +43,28 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
         <div>Right-click: Rotate</div>
         <div>Middle-click: Pan</div>
         <div>Scroll: Zoom</div>
+      </div>
+    </div>
+  );
+}
+
+function MapSelector() {
+  return (
+    <div className="p-3 border-b border-gray-700">
+      <div className="text-xs text-gray-400 mb-1.5 font-medium">Map</div>
+      <div className="space-y-1.5">
+        <button
+          onClick={mockResetMap}
+          className="w-full text-xs bg-yellow-700 hover:bg-yellow-800 text-white px-2 py-1.5 rounded"
+        >
+          Default Map
+        </button>
+        <button
+          onClick={mockClearMap}
+          className="w-full text-xs bg-gray-600 hover:bg-gray-500 text-white px-2 py-1.5 rounded"
+        >
+          Blank Map
+        </button>
       </div>
     </div>
   );

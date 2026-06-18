@@ -10,6 +10,24 @@ import type { RosMsg_OccupancyGrid, RosMsg_Odometry } from './types';
 let ros: Ros | null = null;
 let mapSub: Topic | null = null;
 let odomSub: Topic | null = null;
+let mapOriginX = 0;
+let mapOriginY = 0;
+let mapResolution = 0.05;
+let mapHeight = 0;
+
+function rosToScene(rx: number, ry: number): { x: number; z: number } {
+  return {
+    x: rx - mapOriginX,
+    z: mapOriginY + mapHeight * mapResolution - ry,
+  };
+}
+
+function sceneToRos(sx: number, sz: number): { x: number; y: number } {
+  return {
+    x: sx + mapOriginX,
+    y: mapOriginY + mapHeight * mapResolution - sz,
+  };
+}
 
 export function connect(url?: string): void {
   const store = useRosStore.getState();
@@ -56,6 +74,10 @@ function subscribeAll(): void {
 
   mapSub.subscribe((msg: unknown) => {
     const m = msg as RosMsg_OccupancyGrid;
+    mapOriginX = m.info.origin.position.x;
+    mapOriginY = m.info.origin.position.y;
+    mapResolution = m.info.resolution;
+    mapHeight = m.info.height;
     const grid: OccupancyGridData = {
       width: m.info.width,
       height: m.info.height,
@@ -78,9 +100,10 @@ function subscribeAll(): void {
     const m = msg as RosMsg_Odometry;
     const p = m.pose.pose.position;
     const q = m.pose.pose.orientation;
+    const scenePos = rosToScene(p.x, p.y);
     useRobotPoseStore.getState().setPose({
-      x: p.x,
-      z: p.z,
+      x: scenePos.x,
+      z: scenePos.z,
       yaw: quaternionToYaw(q.x, q.y, q.z, q.w),
     });
   });
@@ -92,6 +115,7 @@ export function getRos(): Ros | null {
 
 export function publishNavGoal(x: number, z: number, yaw: number = 0): void {
   if (!ros) return;
+  const rosPos = sceneToRos(x, z);
   const topic = new Topic({
     ros,
     name: '/move_base_simple/goal',
@@ -103,7 +127,7 @@ export function publishNavGoal(x: number, z: number, yaw: number = 0): void {
       stamp: { secs: Math.floor(Date.now() / 1000), nsecs: 0 },
     },
     pose: {
-      position: { x, y: 0, z },
+      position: { x: rosPos.x, y: rosPos.y, z: 0 },
       orientation: { x: 0, y: 0, z: Math.sin(yaw / 2), w: Math.cos(yaw / 2) },
     },
   };
@@ -117,7 +141,10 @@ export function publishWaypointGoals(waypoints: { x: number; z: number }[]): voi
     name: '/waypoint_goals',
     messageType: 'std_msgs/String',
   });
-  const data = waypoints.map((wp, i) => ({ id: i, x: wp.x, z: wp.z }));
+  const data = waypoints.map((wp) => {
+    const rosPos = sceneToRos(wp.x, wp.z);
+    return { x: rosPos.x, y: rosPos.y };
+  });
   topic.publish({ data: JSON.stringify(data) } as never);
 }
 
@@ -140,12 +167,15 @@ export function publishHRPPath(poses: { x: number; z: number }[]): void {
   });
   const pathMsg = {
     header: { frame_id: 'map' },
-    poses: poses.map((p) => ({
-      pose: {
-        position: { x: p.x, y: 0, z: p.z },
-        orientation: { x: 0, y: 0, z: 0, w: 1 },
-      },
-    })),
+    poses: poses.map((p) => {
+      const rosPos = sceneToRos(p.x, p.z);
+      return {
+        pose: {
+          position: { x: rosPos.x, y: rosPos.y, z: 0 },
+          orientation: { x: 0, y: 0, z: 0, w: 1 },
+        },
+      };
+    }),
   };
   topic.publish(pathMsg as never);
 }

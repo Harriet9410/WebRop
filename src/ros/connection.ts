@@ -4,6 +4,7 @@ import { useMapStore } from '../stores/mapStore';
 import { useRobotPoseStore } from '../stores/robotPoseStore';
 import { OccupancyGridData } from '../utils/mapRenderer';
 import { quaternionToYaw } from '../utils/coordinate';
+import type { SegmentSpeed } from '../stores/hrpStore';
 import type { RosMsg_OccupancyGrid, RosMsg_Odometry } from './types';
 
 let ros: Ros | null = null;
@@ -136,6 +137,16 @@ export function publishHRPPath(poses: { x: number; z: number }[]): void {
     })),
   };
   topic.publish(pathMsg as never);
+}
+
+export function publishHRPSpeeds(speeds: SegmentSpeed[]): void {
+  if (!ros) return;
+  const topic = new Topic({
+    ros,
+    name: '/hrp_speeds',
+    messageType: 'std_msgs/String',
+  });
+  topic.publish({ data: JSON.stringify(speeds) } as never);
 }
 
 export { Ros, Topic };

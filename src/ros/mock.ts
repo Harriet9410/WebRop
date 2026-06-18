@@ -2,6 +2,7 @@ import { useMapStore } from '../stores/mapStore';
 import { useRosStore } from '../stores/rosStore';
 import { useRobotPoseStore } from '../stores/robotPoseStore';
 import { useNavTargetStore } from '../stores/navTargetStore';
+import type { SegmentSpeed } from '../stores/hrpStore';
 import type { OccupancyGridData } from '../utils/mapRenderer';
 
 const MAP_WIDTH = 500;
@@ -17,6 +18,7 @@ let robotX = 1.5;
 let robotZ = 1.5;
 let robotYaw = 0;
 let smoothPath: { x: number; z: number }[] = [];
+let pathSegmentSpeeds: SegmentSpeed[] = [];
 let pathIdx = 0;
 let mockLog: string[] = [];
 let logListeners: ((log: string[]) => void)[] = [];
@@ -274,10 +276,16 @@ function normalizeAngle(a: number): number {
   return a;
 }
 
-const MAX_LINEAR_SPEED = 0.5;
 const MAX_ANGULAR_SPEED = 2.0;
 const ANGLE_THRESHOLD = 0.15;
 const ARRIVE_THRESHOLD = 0.04;
+
+function getCurrentSegmentSpeed(): SegmentSpeed {
+  if (pathIdx >= 1 && pathIdx - 1 < pathSegmentSpeeds.length) {
+    return pathSegmentSpeeds[pathIdx - 1];
+  }
+  return 0.5;
+}
 
 function updateOdom() {
   if (smoothPath.length > 0 && pathIdx < smoothPath.length) {
@@ -291,6 +299,7 @@ function updateOdom() {
       if (pathIdx >= smoothPath.length) {
         addLog('Robot reached destination');
         smoothPath = [];
+        pathSegmentSpeeds = [];
         pathIdx = 0;
         const navStore = useNavTargetStore.getState();
         if (navStore.navigating) {
@@ -301,16 +310,18 @@ function updateOdom() {
       const targetYaw = Math.atan2(dx, -dz);
       const angleError = normalizeAngle(targetYaw - robotYaw);
       const absAngle = Math.abs(angleError);
+      const segSpeed = getCurrentSegmentSpeed();
+      const maxLin = segSpeed;
 
       let linearSpeed = 0;
       let angularSpeed = 0;
 
       if (absAngle > ANGLE_THRESHOLD) {
         angularSpeed = Math.sign(angleError) * Math.min(MAX_ANGULAR_SPEED, absAngle * 3);
-        linearSpeed = MAX_LINEAR_SPEED * 0.1;
+        linearSpeed = maxLin * 0.1;
       } else {
         const turnFactor = 1 - absAngle / ANGLE_THRESHOLD;
-        linearSpeed = MAX_LINEAR_SPEED * (0.3 + 0.7 * turnFactor);
+        linearSpeed = maxLin * (0.3 + 0.7 * turnFactor);
         if (d < 0.3) linearSpeed *= d / 0.3;
         angularSpeed = angleError * 2.0;
       }
@@ -380,6 +391,7 @@ export function stopMock(): void {
     odomTimer = null;
   }
   smoothPath = [];
+  pathSegmentSpeeds = [];
   pathIdx = 0;
   currentGrid = null;
   useNavTargetStore.getState().clearNav();
@@ -478,10 +490,16 @@ function segmentCollides(
   return false;
 }
 
-function planPathAlongWaypoints(waypoints: { x: number; z: number }[]): { x: number; z: number }[] {
-  if (!currentGrid || waypoints.length < 2) return waypoints;
+function planPathAlongWaypoints(
+  waypoints: { x: number; z: number }[],
+  inputSpeeds: SegmentSpeed[]
+): { path: { x: number; z: number }[]; speeds: SegmentSpeed[] } {
+  if (!currentGrid || waypoints.length < 2) {
+    return { path: waypoints, speeds: inputSpeeds };
+  }
 
   const result: { x: number; z: number }[] = [];
+  const resultSegOrigin: number[] = [];
   let i = 0;
 
   while (i < waypoints.length - 1) {
@@ -489,6 +507,7 @@ function planPathAlongWaypoints(waypoints: { x: number; z: number }[]): { x: num
 
     if (!segmentCollides(currentGrid, from.x, from.z, waypoints[i + 1].x, waypoints[i + 1].z)) {
       result.push(from);
+      resultSegOrigin.push(i);
       i++;
       continue;
     }
@@ -515,7 +534,11 @@ function planPathAlongWaypoints(waypoints: { x: number; z: number }[]): { x: num
       if (rawAPath.length > 0) {
         const detour = smoothPathFn(currentGrid, rawAPath);
         result.push(from);
-        result.push(...detour);
+        resultSegOrigin.push(i);
+        for (const d of detour) {
+          result.push(d);
+          resultSegOrigin.push(i);
+        }
         i = detourEnd;
         continue;
       }
@@ -523,26 +546,47 @@ function planPathAlongWaypoints(waypoints: { x: number; z: number }[]): { x: num
 
     addLog(`A* detour failed, skipping to next waypoint`);
     result.push(from);
+    resultSegOrigin.push(i);
     i++;
   }
 
   result.push(waypoints[waypoints.length - 1]);
-  return result;
+  resultSegOrigin.push(waypoints.length - 1);
+
+  const speeds: SegmentSpeed[] = [];
+  for (let j = 0; j < result.length - 1; j++) {
+    const originIdx = resultSegOrigin[j];
+    if (originIdx === 0) {
+      speeds.push(0.5);
+    } else if (originIdx - 1 < inputSpeeds.length) {
+      speeds.push(inputSpeeds[originIdx - 1]);
+    } else {
+      speeds.push(0.5);
+    }
+  }
+
+  return { path: result, speeds };
 }
 
-export function mockPublishHRPPath(poses: { x: number; z: number }[]): void {
+export function mockPublishHRPPath(poses: { x: number; z: number }[], segmentSpeeds: SegmentSpeed[] = []): void {
   if (poses.length === 0) return;
   addLog(`Published to /hrp_path: ${poses.length} waypoints`);
 
   const waypoints = [{ x: robotX, z: robotZ }, ...poses];
-  const checked = planPathAlongWaypoints(waypoints);
+  const { path: checked, speeds } = planPathAlongWaypoints(waypoints, segmentSpeeds);
   const collisionCount = waypoints.length - checked.length;
 
   if (collisionCount > 0) {
     addLog(`Detoured around ${Math.abs(collisionCount)} obstacle crossing(s)`);
   }
 
+  const slowCount = speeds.filter((s) => s < 0.5).length;
+  if (slowCount > 0) {
+    addLog(`Path has ${slowCount} slow segment(s), ${speeds.length - slowCount} fast segment(s)`);
+  }
+
   smoothPath = checked;
+  pathSegmentSpeeds = speeds;
   pathIdx = 0;
   useNavTargetStore.getState().clearNav();
   addLog(`Following path with ${checked.length} waypoints...`);
@@ -555,19 +599,22 @@ export function mockNavigateTo(targetX: number, targetZ: number): void {
   const planned = planPath(targetX, targetZ);
   if (planned.length > 0) {
     smoothPath = planned;
+    pathSegmentSpeeds = new Array(planned.length - 1).fill(0.5 as SegmentSpeed);
     pathIdx = 0;
     useNavTargetStore.getState().setTarget({ x: targetX, z: targetZ });
     useNavTargetStore.getState().setPlannedPath(planned);
     useNavTargetStore.getState().setNavigating(true);
     addLog(`Path found: ${planned.length} waypoints, navigating...`);
   } else {
-    smoothPath = [];
-    pathIdx = 0;
+  smoothPath = [];
+  pathSegmentSpeeds = [];
+  pathIdx = 0;
   }
 }
 
 export function mockCancelNav(): void {
   smoothPath = [];
+  pathSegmentSpeeds = [];
   pathIdx = 0;
   useNavTargetStore.getState().clearNav();
   addLog('Navigation cancelled');

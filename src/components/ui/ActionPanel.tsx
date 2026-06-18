@@ -1,9 +1,9 @@
 import { useHRZStore } from '../../stores/hrzStore';
-import { useHRPStore } from '../../stores/hrpStore';
+import { useHRPStore, SPEED_LEVELS, speedToColor, SegmentSpeed } from '../../stores/hrpStore';
 import { useRosStore } from '../../stores/rosStore';
 import { useNavTargetStore } from '../../stores/navTargetStore';
 import { useMapEditorStore, MapTool } from '../../stores/mapEditorStore';
-import { publishHRZZones, publishHRPPath } from '../../ros/connection';
+import { publishHRZZones, publishHRPPath, publishHRPSpeeds } from '../../ros/connection';
 import { mockPublishHRZZones, mockPublishHRPPath, mockCancelNav, mockResetMap, mockClearMap } from '../../ros/mock';
 import { sceneToRos } from '../../utils/coordinate';
 import type { AppMode } from '../ui/ModeSelector';
@@ -46,9 +46,10 @@ export function ActionPanel({ mode }: ActionPanelProps) {
     if (hrp.path.length < 2) return;
     const rosPoints = hrp.path.map((p) => sceneToRos(p.x, p.z));
     if (isMock) {
-      mockPublishHRPPath(rosPoints);
+      mockPublishHRPPath(rosPoints, hrp.segmentSpeeds);
     } else {
       publishHRPPath(rosPoints);
+      publishHRPSpeeds(hrp.segmentSpeeds);
     }
   };
 
@@ -194,6 +195,56 @@ export function ActionPanel({ mode }: ActionPanelProps) {
               ? 'Draw a path by clicking & dragging. Robot will follow with obstacle avoidance.'
               : 'Draw a path by clicking & dragging, then publish to ROS.'}
           </div>
+          {hrp.path.length >= 2 && (
+            <div className="space-y-1.5">
+              <div className="text-xs text-gray-300 font-medium">Segment Speeds</div>
+              <div className="text-xs text-gray-500">
+                Click segment on map or below to cycle speed. Yellow=slow → Green=fast.
+              </div>
+              <div className="max-h-40 overflow-y-auto space-y-0.5">
+                {hrp.segmentSpeeds.map((speed, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
+                      hrp.selectedSegment === i
+                        ? 'bg-blue-600/40 ring-1 ring-blue-400'
+                        : 'bg-gray-700/50'
+                    }`}
+                  >
+                    <span className="text-gray-300 w-14 shrink-0">Seg {i + 1}</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={SPEED_LEVELS.length - 1}
+                      value={SPEED_LEVELS.indexOf(speed as any) === -1 ? 4 : SPEED_LEVELS.indexOf(speed as any)}
+                      onChange={(e) => hrp.setSegmentSpeed(i, SPEED_LEVELS[Number(e.target.value)])}
+                      className="flex-1 h-1 accent-green-500"
+                    />
+                    <span
+                      className="px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 min-w-[52px] text-center"
+                      style={{ backgroundColor: speedToColor(speed) + 'cc', color: '#fff' }}
+                    >
+                      {speed.toFixed(1)} m/s
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => hrp.segmentSpeeds.forEach((_, i) => hrp.setSegmentSpeed(i, SPEED_LEVELS[SPEED_LEVELS.length - 1]))}
+                  className="flex-1 text-[10px] bg-green-700/60 hover:bg-green-600/60 text-green-200 px-1.5 py-1 rounded"
+                >
+                  All {SPEED_LEVELS[SPEED_LEVELS.length - 1]} m/s
+                </button>
+                <button
+                  onClick={() => hrp.segmentSpeeds.forEach((_, i) => hrp.setSegmentSpeed(i, SPEED_LEVELS[0]))}
+                  className="flex-1 text-[10px] bg-yellow-700/60 hover:bg-yellow-600/60 text-yellow-200 px-1.5 py-1 rounded"
+                >
+                  All {SPEED_LEVELS[0]} m/s
+                </button>
+              </div>
+            </div>
+          )}
           <button
             onClick={handlePublishHRP}
             disabled={!canPublish || hrp.path.length < 2}
@@ -208,7 +259,7 @@ export function ActionPanel({ mode }: ActionPanelProps) {
             Clear Path
           </button>
           <div className="text-xs text-gray-500">
-            Points: {hrp.path.length}
+            Points: {hrp.path.length} | Segments: {hrp.segmentSpeeds.length}
           </div>
         </>
       )}

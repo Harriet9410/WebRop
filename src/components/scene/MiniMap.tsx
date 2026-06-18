@@ -4,6 +4,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useMapStore } from '../../stores/mapStore';
 import { useRobotPoseStore } from '../../stores/robotPoseStore';
 import { useWaypointStore } from '../../stores/waypointStore';
+import { useHRPStore } from '../../stores/hrpStore';
 import type { OccupancyGridData } from '../../utils/mapRenderer';
 
 const MINIMAP_SIZE = 180;
@@ -58,7 +59,8 @@ export function MiniMapBridge() {
     const scale = MINIMAP_SIZE / Math.max(mapW, mapH);
 
     const robotPose = useRobotPoseStore.getState().pose;
-    const waypoints = useWaypointStore.getState().waypoints;
+    const wpStore = useWaypointStore.getState();
+    const hrpStore = useHRPStore.getState();
 
     const raycaster = new THREE.Raycaster();
     const ndcCorners: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
@@ -76,7 +78,9 @@ export function MiniMapBridge() {
     miniMapData.robotX = robotPose.x;
     miniMapData.robotZ = robotPose.z;
     miniMapData.robotYaw = robotPose.yaw;
-    miniMapData.waypoints = waypoints;
+    miniMapData.waypoints = wpStore.waypoints;
+    miniMapData.plannedPath = wpStore.navigating ? wpStore.plannedPath : [];
+    miniMapData.hrpPath = hrpStore.path;
     miniMapData.viewportCorners = viewportCorners;
     miniMapData.mapW = mapW;
     miniMapData.mapH = mapH;
@@ -93,6 +97,8 @@ interface MiniMapDataObj {
   robotZ: number;
   robotYaw: number;
   waypoints: { x: number; z: number }[];
+  plannedPath: { x: number; z: number }[];
+  hrpPath: { x: number; z: number }[];
   viewportCorners: { x: number; z: number }[];
   mapW: number;
   mapH: number;
@@ -106,6 +112,8 @@ const miniMapData: MiniMapDataObj = {
   robotZ: 0,
   robotYaw: 0,
   waypoints: [],
+  plannedPath: [],
+  hrpPath: [],
   viewportCorners: [],
   mapW: 10,
   mapH: 10,
@@ -158,6 +166,30 @@ export function MiniMapOverlay() {
       ctx.moveTo(rx, ry);
       ctx.lineTo(rx + Math.sin(d.robotYaw) * 8, ry + Math.cos(d.robotYaw) * 8);
       ctx.stroke();
+
+      if (d.plannedPath.length >= 2) {
+        ctx.strokeStyle = '#ff4081';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath();
+        ctx.moveTo(d.plannedPath[0].x * d.scale, d.plannedPath[0].z * d.scale);
+        for (let i = 1; i < d.plannedPath.length; i++) {
+          ctx.lineTo(d.plannedPath[i].x * d.scale, d.plannedPath[i].z * d.scale);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      if (d.hrpPath.length >= 2) {
+        ctx.strokeStyle = '#4caf50';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(d.hrpPath[0].x * d.scale, d.hrpPath[0].z * d.scale);
+        for (let i = 1; i < d.hrpPath.length; i++) {
+          ctx.lineTo(d.hrpPath[i].x * d.scale, d.hrpPath[i].z * d.scale);
+        }
+        ctx.stroke();
+      }
 
       if (d.waypoints.length > 0) {
         ctx.strokeStyle = '#42a5f5';

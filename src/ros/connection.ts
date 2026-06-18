@@ -110,6 +110,17 @@ export function publishNavGoal(x: number, z: number, yaw: number = 0): void {
   topic.publish(msg as never);
 }
 
+export function publishWaypointGoals(waypoints: { x: number; z: number }[]): void {
+  if (!ros) return;
+  const topic = new Topic({
+    ros,
+    name: '/waypoint_goals',
+    messageType: 'std_msgs/String',
+  });
+  const data = waypoints.map((wp, i) => ({ id: i, x: wp.x, z: wp.z }));
+  topic.publish({ data: JSON.stringify(data) } as never);
+}
+
 export function publishHRZZones(json: string): void {
   if (!ros) return;
   const topic = new Topic({

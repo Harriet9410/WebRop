@@ -13,10 +13,9 @@ import { useHRZStore } from '../../stores/hrzStore';
 import { useHRPStore } from '../../stores/hrpStore';
 import { useRobotPoseStore } from '../../stores/robotPoseStore';
 import { useRosStore } from '../../stores/rosStore';
-import { useNavTargetStore } from '../../stores/navTargetStore';
+import { useWaypointStore, Waypoint } from '../../stores/waypointStore';
 import { useMapEditorStore } from '../../stores/mapEditorStore';
-import { mockNavigateTo, mockCancelNav, mockPaintBrush, mockPaintRect, mockPlaceRobot } from '../../ros/mock';
-import { publishNavGoal } from '../../ros/connection';
+import { mockPaintBrush, mockPaintRect, mockPlaceRobot } from '../../ros/mock';
 import { Vec2, dist } from '../../utils/coordinate';
 
 function SceneEvents({ mode }: { mode: AppMode }) {
@@ -57,17 +56,9 @@ function SceneEvents({ mode }: { mode: AppMode }) {
         store.addPoint(pt);
         lastPathPoint.current = pt;
       } else if (mode === 'navigate') {
-        const rosStore = useRosStore.getState();
-        if (rosStore.isMock) {
-          const navStore = useNavTargetStore.getState();
-          if (navStore.navigating) {
-            mockCancelNav();
-          }
-          mockNavigateTo(pt.x, pt.z);
-        } else if (rosStore.status === 'connected') {
-          publishNavGoal(pt.x, pt.z);
-          useNavTargetStore.getState().setTarget(pt);
-        }
+        const wpStore = useWaypointStore.getState();
+        if (wpStore.navigating) return;
+        wpStore.addWaypoint(pt);
       } else if (mode === 'mapedit') {
         const isMock = useRosStore.getState().isMock;
         if (!isMock) return;
@@ -150,9 +141,10 @@ function SceneEvents({ mode }: { mode: AppMode }) {
 
 export function Scene3D({ mode }: { mode: AppMode }) {
   const robotPose = useRobotPoseStore((s) => s.pose);
-  const navTarget = useNavTargetStore((s) => s.target);
-  const plannedPath = useNavTargetStore((s) => s.plannedPath);
-  const navigating = useNavTargetStore((s) => s.navigating);
+  const waypoints = useWaypointStore((s) => s.waypoints);
+  const currentWaypointIdx = useWaypointStore((s) => s.currentWaypointIdx);
+  const navigating = useWaypointStore((s) => s.navigating);
+  const plannedPath = useWaypointStore((s) => s.plannedPath);
 
   return (
     <Canvas
@@ -172,7 +164,15 @@ export function Scene3D({ mode }: { mode: AppMode }) {
         </>
       )}
       {mode === 'mapedit' && <MapEditPreview />}
-      {navTarget && <NavTargetMarker x={navTarget.x} z={navTarget.z} />}
+      {(mode === 'navigate') && waypoints.map((wp, i) => (
+        <WaypointMarker
+          key={wp.id}
+          waypoint={wp}
+          index={i}
+          isCurrent={navigating && i === currentWaypointIdx}
+          isReached={navigating && i < currentWaypointIdx}
+        />
+      ))}
       {plannedPath.length >= 2 && navigating && (
         <NavPathVisual path={plannedPath} color="#ff4081" />
       )}
@@ -182,27 +182,42 @@ export function Scene3D({ mode }: { mode: AppMode }) {
   );
 }
 
-function NavTargetMarker({ x, z }: { x: number; z: number }) {
+function makeNumberTexture(num: number, bgColor: string): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = bgColor;
+  ctx.beginPath();
+  ctx.arc(32, 32, 28, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 32px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(num + 1), 32, 33);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function WaypointMarker({ waypoint, index, isCurrent, isReached }: {
+  waypoint: Waypoint;
+  index: number;
+  isCurrent: boolean;
+  isReached: boolean;
+}) {
+  const bgColor = isReached ? '#666666' : isCurrent ? '#ff4081' : '#42a5f5';
+  const texture = useMemo(() => makeNumberTexture(index, bgColor), [index, bgColor]);
+
   return (
-    <group position={[x, 0.02, z]}>
-      <mesh position={[0, 0.3, 0]}>
-        <sphereGeometry args={[0.08, 16, 16]} />
-        <meshBasicMaterial color="#ff4081" />
-      </mesh>
-      <line>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={2}
-            array={new Float32Array([0, 0, 0, 0, 0.22, 0])}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial color="#ff4081" />
-      </line>
+    <group position={[waypoint.x, 0.02, waypoint.z]}>
+      <sprite position={[0, 0.5, 0]} scale={[0.5, 0.5, 1]}>
+        <spriteMaterial map={texture} transparent opacity={isReached ? 0.4 : 0.9} />
+      </sprite>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <ringGeometry args={[0.12, 0.18, 24]} />
-        <meshBasicMaterial color="#ff4081" side={2} transparent opacity={0.6} />
+        <ringGeometry args={[0.1, 0.16, 24]} />
+        <meshBasicMaterial color={bgColor} side={2} transparent opacity={isReached ? 0.3 : 0.7} />
       </mesh>
     </group>
   );

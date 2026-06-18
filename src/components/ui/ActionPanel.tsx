@@ -1,10 +1,10 @@
 import { useHRZStore } from '../../stores/hrzStore';
 import { useHRPStore, SPEED_LEVELS, speedToColor, SegmentSpeed } from '../../stores/hrpStore';
 import { useRosStore } from '../../stores/rosStore';
-import { useNavTargetStore } from '../../stores/navTargetStore';
+import { useWaypointStore } from '../../stores/waypointStore';
 import { useMapEditorStore, MapTool } from '../../stores/mapEditorStore';
 import { publishHRZZones, publishHRPPath, publishHRPSpeeds } from '../../ros/connection';
-import { mockPublishHRZZones, mockPublishHRPPath, mockCancelNav, mockResetMap, mockClearMap } from '../../ros/mock';
+import { mockPublishHRZZones, mockPublishHRPPath, mockStartWaypointNav, mockCancelNav, mockResetMap, mockClearMap } from '../../ros/mock';
 import { sceneToRos } from '../../utils/coordinate';
 import type { AppMode } from '../ui/ModeSelector';
 
@@ -22,10 +22,9 @@ const mapTools: { key: MapTool; label: string; desc: string }[] = [
 export function ActionPanel({ mode }: ActionPanelProps) {
   const hrz = useHRZStore();
   const hrp = useHRPStore();
+  const wpStore = useWaypointStore();
   const isMock = useRosStore((s) => s.isMock);
   const isConnected = useRosStore((s) => s.status) === 'connected';
-  const navigating = useNavTargetStore((s) => s.navigating);
-  const navTarget = useNavTargetStore((s) => s.target);
   const editTool = useMapEditorStore((s) => s.tool);
   const brushSize = useMapEditorStore((s) => s.brushSize);
 
@@ -53,11 +52,25 @@ export function ActionPanel({ mode }: ActionPanelProps) {
     }
   };
 
+  const handleStartNav = () => {
+    if (isMock) {
+      mockStartWaypointNav();
+    } else {
+      const wps = wpStore.waypoints;
+      if (wps.length > 0) {
+        const first = wps[0];
+        publishNavGoal(first.x, first.z);
+        wpStore.setCurrentWaypointIdx(0);
+        wpStore.setNavigating(true);
+      }
+    }
+  };
+
   const handleCancelNav = () => {
     if (isMock) {
       mockCancelNav();
     } else {
-      useNavTargetStore.getState().clearNav();
+      wpStore.clearNav();
     }
   };
 
@@ -67,48 +80,91 @@ export function ActionPanel({ mode }: ActionPanelProps) {
     <div className="space-y-3">
       {mode === 'navigate' && (
         <>
-          {isMock ? (
-            <>
-              <div className="text-xs text-gray-400">
-                Left-click on the map to set a target point. Robot will auto-plan an obstacle-free path via A*.
+          <div className="text-xs text-gray-400">
+            Left-click on the map to add waypoints. Robot will navigate to each in order.
+          </div>
+          {wpStore.waypoints.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-xs text-gray-300 font-medium">
+                Waypoints ({wpStore.waypoints.length})
               </div>
-              {navigating && navTarget && (
-                <>
-                  <div className="text-xs text-blue-400">
-                    Navigating to ({navTarget.x.toFixed(1)}, {navTarget.z.toFixed(1)})...
-                  </div>
-                  <button
-                    onClick={handleCancelNav}
-                    className="w-full text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded"
+              <div className="max-h-48 overflow-y-auto space-y-0.5">
+                {wpStore.waypoints.map((wp, i) => (
+                  <div
+                    key={wp.id}
+                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
+                      wpStore.navigating && i === wpStore.currentWaypointIdx
+                        ? 'bg-pink-600/40 ring-1 ring-pink-400'
+                        : wpStore.navigating && i < wpStore.currentWaypointIdx
+                        ? 'bg-gray-600/30 opacity-50'
+                        : 'bg-gray-700/50'
+                    }`}
                   >
-                    Cancel Navigation
-                  </button>
-                </>
-              )}
-            </>
-          ) : isConnected ? (
-            <>
-              <div className="text-xs text-gray-400">
-                Left-click on the map to send a navigation goal. The robot will navigate via move_base.
+                    <span className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold shrink-0">
+                      {i + 1}
+                    </span>
+                    <span className="text-gray-300 flex-1 truncate">
+                      ({wp.x.toFixed(1)}, {wp.z.toFixed(1)})
+                    </span>
+                    {!wpStore.navigating && (
+                      <>
+                        <button
+                          onClick={() => wpStore.moveWaypoint(wp.id, 'up')}
+                          disabled={i === 0}
+                          className="text-gray-400 hover:text-white disabled:opacity-30 px-0.5"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          onClick={() => wpStore.moveWaypoint(wp.id, 'down')}
+                          disabled={i === wpStore.waypoints.length - 1}
+                          className="text-gray-400 hover:text-white disabled:opacity-30 px-0.5"
+                        >
+                          ▼
+                        </button>
+                        <button
+                          onClick={() => wpStore.removeWaypoint(wp.id)}
+                          className="text-red-400 hover:text-red-300 px-0.5"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
-              {navTarget && (
-                <>
-                  <div className="text-xs text-blue-400">
-                    Goal sent: ({navTarget.x.toFixed(1)}, {navTarget.z.toFixed(1)})
-                  </div>
-                  <button
-                    onClick={handleCancelNav}
-                    className="w-full text-xs bg-gray-600 hover:bg-gray-500 text-white px-3 py-1.5 rounded"
-                  >
-                    Clear Goal
-                  </button>
-                </>
-              )}
+            </div>
+          )}
+          {wpStore.navigating ? (
+            <>
+              <div className="text-xs text-pink-400">
+                Navigating: waypoint {wpStore.currentWaypointIdx + 1}/{wpStore.waypoints.length}
+              </div>
+              <button
+                onClick={handleCancelNav}
+                className="w-full text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded"
+              >
+                Cancel Navigation
+              </button>
             </>
           ) : (
-            <div className="text-xs text-gray-400">
-              Connect to ROS to enable navigation. Right-click to rotate, middle-click to pan, scroll to zoom.
-            </div>
+            <>
+              <button
+                onClick={handleStartNav}
+                disabled={wpStore.waypoints.length === 0}
+                className="w-full text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded"
+              >
+                Start Navigation ({wpStore.waypoints.length} waypoints)
+              </button>
+              {wpStore.waypoints.length > 0 && (
+                <button
+                  onClick={() => wpStore.clearWaypoints()}
+                  className="w-full text-xs bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded"
+                >
+                  Clear All Waypoints
+                </button>
+              )}
+            </>
           )}
         </>
       )}

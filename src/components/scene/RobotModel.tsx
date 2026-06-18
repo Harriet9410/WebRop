@@ -35,6 +35,7 @@ export function RobotModel({ x, z, yaw }: RobotModelProps) {
 
   return (
     <group ref={groupRef}>
+      <Footprint />
       <Chassis />
       <Wheels />
       <TopPlate />
@@ -43,6 +44,17 @@ export function RobotModel({ x, z, yaw }: RobotModelProps) {
       <LEDs />
       <FrontBumper />
     </group>
+  );
+}
+
+const ROBOT_RADIUS = 0.16;
+
+function Footprint() {
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
+      <circleGeometry args={[ROBOT_RADIUS, 48]} />
+      <meshBasicMaterial color="#42a5f5" transparent opacity={0.2} side={2} depthWrite={false} />
+    </mesh>
   );
 }
 

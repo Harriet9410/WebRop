@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Vec2 } from '../utils/coordinate';
 
-export const SPEED_LEVELS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8] as const;
+export const SPEED_LEVELS = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0] as const;
 export type SegmentSpeed = number;
 export const DEFAULT_SPEED: SegmentSpeed = 0.5;
 

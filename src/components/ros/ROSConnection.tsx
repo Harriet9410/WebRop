@@ -8,8 +8,10 @@ export function ROSConnection() {
   const [inputUrl, setInputUrl] = useState(url);
 
   const handleConnect = () => {
-    setMock(false);
-    stopMock();
+    if (isMock) {
+      stopMock();
+      setMock(false);
+    }
     setUrl(inputUrl);
     connect(inputUrl);
   };
@@ -24,7 +26,9 @@ export function ROSConnection() {
   };
 
   const handleMock = () => {
-    disconnect();
+    if (!isMock) {
+      disconnect();
+    }
     setMock(true);
     startMock();
   };
@@ -46,7 +50,7 @@ export function ROSConnection() {
           onChange={(e) => setInputUrl(e.target.value)}
           placeholder="ws://localhost:9090"
         />
-        {status === 'connected' ? (
+        {status === 'connected' && !isMock ? (
           <button
             onClick={handleDisconnect}
             className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded"
@@ -63,13 +67,22 @@ export function ROSConnection() {
         )}
       </div>
       <div className="flex items-center gap-2">
-        {status !== 'connected' && (
+        {isMock ? (
           <button
-            onClick={handleMock}
-            className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded"
+            onClick={handleDisconnect}
+            className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded"
           >
-            Mock Mode
+            Exit Mock
           </button>
+        ) : (
+          status !== 'connected' && (
+            <button
+              onClick={handleMock}
+              className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded"
+            >
+              Mock Mode
+            </button>
+          )
         )}
         <span className="text-xs text-gray-400 capitalize">
           {status}{isMock ? ' (mock)' : ''}

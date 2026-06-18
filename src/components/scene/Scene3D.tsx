@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useCallback, useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { Canvas, useThree } from '@react-three/fiber';
 import { MapFloor } from './MapFloor';
@@ -9,12 +9,13 @@ import { HRPEditor3D } from '../editor/HRPEditor3D';
 import type { AppMode } from '../ui/ModeSelector';
 import { useHRZStore } from '../../stores/hrzStore';
 import { useHRPStore } from '../../stores/hrpStore';
+import { useRobotPoseStore } from '../../stores/robotPoseStore';
 import { Vec2, dist } from '../../utils/coordinate';
 
 function SceneEvents({ mode }: { mode: AppMode }) {
   const { gl, camera } = useThree();
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
-  const groundPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
+  const groundPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
   const lastPathPoint = useRef<Vec2 | null>(null);
 
   const getScenePoint = useCallback(
@@ -86,7 +87,7 @@ function SceneEvents({ mode }: { mode: AppMode }) {
 }
 
 export function Scene3D({ mode }: { mode: AppMode }) {
-  const [robotPose] = useState({ x: 2, z: 2, yaw: 0 });
+  const robotPose = useRobotPoseStore((s) => s.pose);
 
   return (
     <Canvas

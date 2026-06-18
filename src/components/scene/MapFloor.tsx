@@ -5,7 +5,6 @@ import { renderMapToCanvas } from '../../utils/mapRenderer';
 
 export function MapFloor() {
   const grid = useMapStore((s) => s.grid);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const meshRef = useRef<THREE.Mesh>(null);
 
   const offlineCanvas = useMemo(() => document.createElement('canvas'), []);

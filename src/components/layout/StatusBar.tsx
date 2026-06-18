@@ -4,6 +4,7 @@ import { useHRPStore } from '../../stores/hrpStore';
 
 export function StatusBar() {
   const rosStatus = useRosStore((s) => s.status);
+  const isMock = useRosStore((s) => s.isMock);
   const zoneCount = useHRZStore((s) => s.zones.length);
   const pathPts = useHRPStore((s) => s.path.length);
 
@@ -14,13 +15,13 @@ export function StatusBar() {
         <span
           className={
             rosStatus === 'connected'
-              ? 'text-green-400'
+              ? isMock ? 'text-purple-400' : 'text-green-400'
               : rosStatus === 'error'
               ? 'text-red-400'
               : 'text-yellow-400'
           }
         >
-          {rosStatus}
+          {rosStatus}{isMock ? ' (mock)' : ''}
         </span>
       </span>
       <span>Zones: {zoneCount}</span>

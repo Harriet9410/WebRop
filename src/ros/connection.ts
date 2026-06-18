@@ -1,8 +1,9 @@
 import { Ros, Topic } from 'roslib';
 import { useRosStore } from '../stores/rosStore';
 import { useMapStore } from '../stores/mapStore';
+import { useRobotPoseStore } from '../stores/robotPoseStore';
 import { OccupancyGridData } from '../utils/mapRenderer';
-import { quaternionToYaw, rosToScene } from '../utils/coordinate';
+import { quaternionToYaw } from '../utils/coordinate';
 import type { RosMsg_OccupancyGrid, RosMsg_Odometry } from './types';
 
 let ros: Ros | null = null;
@@ -61,6 +62,24 @@ function subscribeAll(): void {
       data: m.data,
     };
     useMapStore.getState().setGrid(grid);
+  });
+
+  odomSub = new Topic({
+    ros,
+    name: '/odom',
+    messageType: 'nav_msgs/Odometry',
+    throttle_rate: 100,
+  });
+
+  odomSub.subscribe((msg: unknown) => {
+    const m = msg as RosMsg_Odometry;
+    const p = m.pose.pose.position;
+    const q = m.pose.pose.orientation;
+    useRobotPoseStore.getState().setPose({
+      x: p.x,
+      z: p.z,
+      yaw: quaternionToYaw(q.x, q.y, q.z, q.w),
+    });
   });
 }
 

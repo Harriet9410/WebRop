@@ -11,7 +11,7 @@ interface HRPEditor3DProps {
 
 export function HRPEditor3D({ robotX, robotZ }: HRPEditor3DProps) {
   const path = useHRPStore((s) => s.path);
-  const connectorRef = useRef<THREE.Line>(null);
+  const connectorRef = useRef<any>(null);
   const dashOffset = useRef(0);
 
   const linePositions = useMemo(() => {
@@ -36,7 +36,7 @@ export function HRPEditor3D({ robotX, robotZ }: HRPEditor3DProps) {
       const mat = connectorRef.current.material as THREE.LineDashedMaterial;
       if (mat.isLineDashedMaterial) {
         dashOffset.current -= delta * 0.5;
-        mat.dashOffset = dashOffset.current;
+        (mat as any).dashOffset = dashOffset.current;
         mat.needsUpdate = true;
       }
       connectorRef.current.computeLineDistances();

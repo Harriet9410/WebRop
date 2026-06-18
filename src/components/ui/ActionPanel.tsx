@@ -1,7 +1,9 @@
 import { useHRZStore } from '../../stores/hrzStore';
 import { useHRPStore } from '../../stores/hrpStore';
+import { useRosStore } from '../../stores/rosStore';
 import { publishHRZZones, publishHRPPath } from '../../ros/connection';
-import { sceneToRos, dist } from '../../utils/coordinate';
+import { mockPublishHRZZones, mockPublishHRPPath } from '../../ros/mock';
+import { sceneToRos } from '../../utils/coordinate';
 import type { AppMode } from '../ui/ModeSelector';
 
 interface ActionPanelProps {
@@ -11,20 +13,33 @@ interface ActionPanelProps {
 export function ActionPanel({ mode }: ActionPanelProps) {
   const hrz = useHRZStore();
   const hrp = useHRPStore();
+  const isMock = useRosStore((s) => s.isMock);
+  const isConnected = useRosStore((s) => s.status) === 'connected';
 
   const handlePublishHRZ = () => {
     const data = hrz.zones.map((z) => ({
       id: z.id,
       vertices: z.vertices.map((v) => sceneToRos(v.x, v.z)),
     }));
-    publishHRZZones(JSON.stringify(data));
+    const json = JSON.stringify(data);
+    if (isMock) {
+      mockPublishHRZZones(json);
+    } else {
+      publishHRZZones(json);
+    }
   };
 
   const handlePublishHRP = () => {
     if (hrp.path.length < 2) return;
     const rosPoints = hrp.path.map((p) => sceneToRos(p.x, p.z));
-    publishHRPPath(rosPoints);
+    if (isMock) {
+      mockPublishHRPPath(rosPoints);
+    } else {
+      publishHRPPath(rosPoints);
+    }
   };
+
+  const canPublish = isConnected;
 
   return (
     <div className="space-y-3">
@@ -35,7 +50,7 @@ export function ActionPanel({ mode }: ActionPanelProps) {
           </div>
           <button
             onClick={handlePublishHRZ}
-            disabled={hrz.zones.length === 0}
+            disabled={!canPublish || hrz.zones.length === 0}
             className="w-full text-xs bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded"
           >
             Publish HRZ Zones ({hrz.zones.length})
@@ -64,7 +79,7 @@ export function ActionPanel({ mode }: ActionPanelProps) {
           </div>
           <button
             onClick={handlePublishHRP}
-            disabled={hrp.path.length < 2}
+            disabled={!canPublish || hrp.path.length < 2}
             className="w-full text-xs bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded"
           >
             Publish HRP Path

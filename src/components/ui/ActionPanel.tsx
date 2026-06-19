@@ -136,6 +136,20 @@ export function ActionPanel({ mode }: ActionPanelProps) {
 
   return (
     <div className="space-y-3">
+      <div className="flex gap-1">
+        <button
+          onClick={() => useMeasureStore.getState().startMeasure()}
+          className="flex-1 text-[10px] bg-cyan-700/60 hover:bg-cyan-600/60 text-cyan-200 px-1.5 py-1 rounded"
+        >
+          Measure
+        </button>
+        <button
+          onClick={() => useMeasureStore.getState().clearMeasure()}
+          className="flex-1 text-[10px] bg-gray-700/60 hover:bg-gray-600/60 text-gray-300 px-1.5 py-1 rounded"
+        >
+          Clear Measure
+        </button>
+      </div>
       {mode === 'navigate' && (
         <>
           <div className="text-xs text-gray-400">
@@ -353,20 +367,6 @@ export function ActionPanel({ mode }: ActionPanelProps) {
             {isMock
               ? 'Draw a path by clicking & dragging. Robot will follow with obstacle avoidance. Hold Shift to snap to 0.5m grid.'
               : 'Draw a path by clicking & dragging, then publish to ROS. Hold Shift to snap to 0.5m grid.'}
-          </div>
-          <div className="flex gap-1">
-            <button
-              onClick={() => useMeasureStore.getState().startMeasure()}
-              className="flex-1 text-[10px] bg-cyan-700/60 hover:bg-cyan-600/60 text-cyan-200 px-1.5 py-1 rounded"
-            >
-              Measure
-            </button>
-            <button
-              onClick={() => useMeasureStore.getState().clearMeasure()}
-              className="flex-1 text-[10px] bg-gray-700/60 hover:bg-gray-600/60 text-gray-300 px-1.5 py-1 rounded"
-            >
-              Clear Measure
-            </button>
           </div>
           {hrp.path.length >= 2 && (
             <div className="space-y-1.5">

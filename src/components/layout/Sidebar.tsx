@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ROSConnection } from '../ros/ROSConnection';
 import { ModeSelector, AppMode } from '../ui/ModeSelector';
 import { ActionPanel } from '../ui/ActionPanel';
+import { SnapshotPanel } from '../ui/SnapshotPanel';
 import { useRosStore } from '../../stores/rosStore';
 import { onMockLog, getMockLog, mockResetMap, mockClearMap } from '../../ros/mock';
 
@@ -38,6 +39,8 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
       </div>
 
       {isMock && <MockLogPanel />}
+
+      <SnapshotPanel />
 
       <div className="p-3 border-t border-gray-700 text-xs text-gray-500 mt-auto">
         <div>Right-click: Rotate</div>

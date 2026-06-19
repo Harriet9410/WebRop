@@ -9,14 +9,17 @@ import { useHRPStore } from './stores/hrpStore';
 import { useRosStore } from './stores/rosStore';
 import { useUndoStore } from './stores/undoStore';
 import { useTeleopStore } from './stores/teleopStore';
+import { useLabelStore } from './stores/labelStore';
 import { save, load } from './utils/persistence';
 
 function App() {
   const [mode, setMode] = useState<AppMode>('navigate');
   const hrzZones = useHRZStore((s) => s.zones);
   const hrpPath = useHRPStore((s) => s.path);
+  const mapLabels = useLabelStore((s) => s.labels);
   const loadZones = useHRZStore((s) => s.loadZones);
   const loadPath = useHRPStore((s) => s.loadPath);
+  const loadLabels = useLabelStore((s) => s.loadLabels);
   const isMock = useRosStore((s) => s.isMock);
 
   useEffect(() => {
@@ -24,11 +27,12 @@ function App() {
     if (data) {
       if (data.hrzZones) loadZones(data.hrzZones);
       if (data.hrpPath) loadPath(data.hrpPath);
+      if (data.labels) loadLabels(data.labels);
     }
   }, []);
 
   useEffect(() => {
-    save(hrzZones, hrpPath);
+    save(hrzZones, hrpPath, mapLabels);
   }, [hrzZones, hrpPath]);
 
   useEffect(() => {

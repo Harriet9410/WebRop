@@ -12,11 +12,20 @@ interface CameraControlsProps {
 
 const lerpTarget = new THREE.Vector3();
 
+export type CameraPreset = 'top' | 'side' | 'perspective' | null;
+
+let pendingPreset: CameraPreset = null;
+
+export function setCameraPreset(preset: CameraPreset) {
+  pendingPreset = preset;
+}
+
 export function CameraControls({ mode, followRobot }: CameraControlsProps) {
   const controlsRef = useRef<any>(null);
   const { camera } = useThree();
   const appliedKey = useRef('');
   const snapshotApplied = useRef(false);
+  const presetAnim = useRef<{ startPos: THREE.Vector3; endPos: THREE.Vector3; startTarget: THREE.Vector3; endTarget: THREE.Vector3; t: number } | null>(null);
 
   useEffect(() => {
     if (controlsRef.current) {
@@ -43,8 +52,54 @@ export function CameraControls({ mode, followRobot }: CameraControlsProps) {
     snapshotApplied.current = false;
   }, [useCameraStore.getState().position, useCameraStore.getState().target]);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!controlsRef.current) return;
+
+    if (pendingPreset && !presetAnim.current) {
+      const t = controlsRef.current.target;
+      let endPos: [number, number, number];
+      let endTarget: [number, number, number];
+
+      switch (pendingPreset) {
+        case 'top':
+          endPos = [t.x, 25, t.z + 0.01];
+          endTarget = [t.x, 0, t.z];
+          break;
+        case 'side':
+          endPos = [t.x, 5, t.z + 20];
+          endTarget = [t.x, 0, t.z];
+          break;
+        case 'perspective':
+          endPos = [t.x + 12, 12, t.z + 12];
+          endTarget = [t.x, 0, t.z];
+          break;
+        default:
+          endPos = [t.x, 15, t.z + 15];
+          endTarget = [t.x, 0, t.z];
+      }
+
+      presetAnim.current = {
+        startPos: camera.position.clone(),
+        endPos: new THREE.Vector3(...endPos),
+        startTarget: t.clone(),
+        endTarget: new THREE.Vector3(...endTarget),
+        t: 0,
+      };
+      pendingPreset = null;
+    }
+
+    if (presetAnim.current) {
+      const anim = presetAnim.current;
+      anim.t = Math.min(1, anim.t + delta * 2.5);
+      const ease = 1 - Math.pow(1 - anim.t, 3);
+      camera.position.lerpVectors(anim.startPos, anim.endPos, ease);
+      controlsRef.current.target.lerpVectors(anim.startTarget, anim.endTarget, ease);
+      controlsRef.current.update();
+      if (anim.t >= 1) {
+        presetAnim.current = null;
+      }
+      return;
+    }
 
     if (followRobot) {
       const pose = useRobotPoseStore.getState().pose;

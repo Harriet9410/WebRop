@@ -10,6 +10,9 @@ import { NavPathVisual } from './NavPathVisual';
 import { MapEditPreview } from './MapEditPreview';
 import { MiniMapBridge, MiniMapOverlay } from './MiniMap';
 import { BreadcrumbTrail } from './BreadcrumbTrail';
+import { InflationOverlay } from './InflationOverlay';
+import { MapLabels3D } from './MapLabels3D';
+import { useLabelStore } from '../../stores/labelStore';
 import type { AppMode } from '../ui/ModeSelector';
 import { useHRZStore, HRZZone } from '../../stores/hrzStore';
 import { useHRPStore } from '../../stores/hrpStore';
@@ -262,16 +265,27 @@ function SceneEvents({ mode }: { mode: AppMode }) {
       }
     };
 
+    const onDblClick = (e: PointerEvent) => {
+      const pt = getScenePoint(e);
+      if (!pt) return;
+      const text = prompt('Label text:');
+      if (text && text.trim()) {
+        useLabelStore.getState().addLabel(text.trim(), pt);
+      }
+    };
+
     canvas.addEventListener('pointerdown', onPointerDown);
     canvas.addEventListener('pointermove', onPointerMove);
     canvas.addEventListener('pointerup', onPointerUp);
     canvas.addEventListener('contextmenu', onContextMenu);
+    canvas.addEventListener('dblclick', onDblClick);
 
     return () => {
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('contextmenu', onContextMenu);
+      canvas.removeEventListener('dblclick', onDblClick);
     };
   }, [mode, getScenePoint, gl]);
 
@@ -326,6 +340,8 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       <CameraControls mode={mode} followRobot={followRobot} />
       <MiniMapBridge />
       <BreadcrumbTrail />
+      <InflationOverlay />
+      <MapLabels3D />
       <gridHelper args={[50, 50, '#555', '#333']} position={[5, 0, 5]} />
     </Canvas>
     <MiniMapOverlay />

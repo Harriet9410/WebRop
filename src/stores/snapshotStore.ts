@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { useHRZStore, HRZZone, ZoneType } from './hrzStore';
 import { useHRPStore, SegmentSpeed } from './hrpStore';
+import { useLabelStore, MapLabel } from './labelStore';
 import { Vec2 } from '../utils/coordinate';
 
 export interface SceneSnapshot {
@@ -10,6 +11,7 @@ export interface SceneSnapshot {
   hrzZones: HRZZone[];
   hrpPath: Vec2[];
   hrpSpeeds: SegmentSpeed[];
+  labels: MapLabel[];
   camera: { px: number; py: number; pz: number; tx: number; ty: number; tz: number };
 }
 
@@ -46,6 +48,7 @@ export const useSnapshotStore = create<SnapshotState>((set, get) => ({
   saveSnapshot: (name, camera) => {
     const hrz = useHRZStore.getState();
     const hrp = useHRPStore.getState();
+    const lbl = useLabelStore.getState();
     const snap: SceneSnapshot = {
       id: `snap-${++snapshotCounter}-${Date.now()}`,
       name,
@@ -53,6 +56,7 @@ export const useSnapshotStore = create<SnapshotState>((set, get) => ({
       hrzZones: hrz.zones.map((z) => ({ ...z, vertices: [...z.vertices] })),
       hrpPath: [...hrp.path],
       hrpSpeeds: [...hrp.segmentSpeeds],
+      labels: [...lbl.labels],
       camera,
     };
     const newSnapshots = [...get().snapshots, snap];
@@ -66,6 +70,7 @@ export const useSnapshotStore = create<SnapshotState>((set, get) => ({
     useHRZStore.getState().loadZones(snap.hrzZones);
     useHRPStore.getState().loadPath(snap.hrpPath);
     useHRPStore.setState({ segmentSpeeds: snap.hrpSpeeds });
+    if (snap.labels) useLabelStore.getState().loadLabels(snap.labels);
     return snap;
   },
 

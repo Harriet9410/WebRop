@@ -5,6 +5,7 @@ import { useWaypointStore } from '../../stores/waypointStore';
 import { useMapStore } from '../../stores/mapStore';
 import { useMapEditorStore, MapTool } from '../../stores/mapEditorStore';
 import { useUndoStore } from '../../stores/undoStore';
+import { useLabelStore } from '../../stores/labelStore';
 import { publishHRZZones, publishHRPPath, publishHRPSpeeds, publishNavGoal } from '../../ros/connection';
 import { mockPublishHRZZones, mockPublishHRPPath, mockStartWaypointNav, mockCancelNav, mockResetMap, mockClearMap } from '../../ros/mock';
 import { sceneToRos, dist } from '../../utils/coordinate';
@@ -37,6 +38,7 @@ export function ActionPanel({ mode }: ActionPanelProps) {
   const isConnected = useRosStore((s) => s.status) === 'connected';
   const editTool = useMapEditorStore((s) => s.tool);
   const brushSize = useMapEditorStore((s) => s.brushSize);
+  const labels = useLabelStore((s) => s.labels);
 
   const handlePublishHRZ = () => {
     const zones = useHRZStore.getState().zones;
@@ -236,6 +238,33 @@ export function ActionPanel({ mode }: ActionPanelProps) {
               )}
             </>
           )}
+          <div className="border-t border-gray-700 pt-2 space-y-1">
+            <div className="text-xs text-gray-300 font-medium">Map Labels</div>
+            <div className="text-xs text-gray-500">Double-click map to add label</div>
+            {labels.length > 0 && (
+              <div className="max-h-24 overflow-y-auto space-y-0.5">
+                {labels.map((l) => (
+                  <div key={l.id} className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-gray-700/50">
+                    <span className="text-gray-300 flex-1 truncate">{l.text}</span>
+                    <button
+                      onClick={() => useLabelStore.getState().removeLabel(l.id)}
+                      className="text-red-400 hover:text-red-300 px-0.5"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {labels.length > 0 && (
+              <button
+                onClick={() => useLabelStore.getState().clearAll()}
+                className="w-full text-[10px] bg-red-700/60 hover:bg-red-600/60 text-red-200 px-1.5 py-1 rounded"
+              >
+                Clear All Labels
+              </button>
+            )}
+          </div>
         </>
       )}
       {mode === 'mapedit' && isMock && (

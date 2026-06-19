@@ -5,6 +5,8 @@ import { useHRPStore } from '../../stores/hrpStore';
 import { useUndoStore } from '../../stores/undoStore';
 import { useRobotPoseStore } from '../../stores/robotPoseStore';
 import { useTeleopStore } from '../../stores/teleopStore';
+import { useInflationStore } from '../../stores/inflationStore';
+import { setCameraPreset, CameraPreset } from '../scene/CameraControls';
 
 interface StatusBarProps {
   followRobot: boolean;
@@ -22,7 +24,9 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
   const linearV = useRobotPoseStore((s) => s.linearVelocity);
   const angularV = useRobotPoseStore((s) => s.angularVelocity);
   const teleopEnabled = useTeleopStore((s) => s.teleopEnabled);
+  const showInflation = useInflationStore((s) => s.showInflation);
   const [shiftHeld, setShiftHeld] = useState(false);
+  const [activePreset, setActivePreset] = useState<CameraPreset>(null);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => { if (e.key === 'Shift') setShiftHeld(true); };
@@ -32,8 +36,14 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, []);
 
+  const handlePreset = (p: CameraPreset) => {
+    setCameraPreset(p);
+    setActivePreset(p);
+    setTimeout(() => setActivePreset(null), 1000);
+  };
+
   return (
-    <div className="h-7 bg-gray-900 border-t border-gray-700 flex items-center px-3 text-xs text-gray-400 gap-4">
+    <div className="h-7 bg-gray-900 border-t border-gray-700 flex items-center px-3 text-xs text-gray-400 gap-3">
       <span>
         ROS:{' '}
         <span
@@ -49,7 +59,7 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
         </span>
       </span>
       <span>Zones: {zoneCount}</span>
-      <span>Path pts: {pathPts}</span>
+      <span>Path: {pathPts}</span>
       <span>
         <span className="text-gray-500">V:</span>{' '}
         <span className="text-cyan-400 font-mono">{Math.abs(linearV).toFixed(2)}m/s</span>
@@ -57,6 +67,33 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
         <span className="text-gray-500">W:</span>{' '}
         <span className="text-cyan-400 font-mono">{(angularV * 180 / Math.PI).toFixed(0)}°/s</span>
       </span>
+      <span className="flex items-center gap-1">
+        <span className="text-gray-500 mr-0.5">View:</span>
+        <button
+          onClick={() => handlePreset('top')}
+          className={`px-1 py-0 rounded text-[10px] ${activePreset === 'top' ? 'text-green-400 bg-green-900/40' : 'text-gray-500 hover:text-gray-300'}`}
+        >
+          Top
+        </button>
+        <button
+          onClick={() => handlePreset('side')}
+          className={`px-1 py-0 rounded text-[10px] ${activePreset === 'side' ? 'text-green-400 bg-green-900/40' : 'text-gray-500 hover:text-gray-300'}`}
+        >
+          Side
+        </button>
+        <button
+          onClick={() => handlePreset('perspective')}
+          className={`px-1 py-0 rounded text-[10px] ${activePreset === 'perspective' ? 'text-green-400 bg-green-900/40' : 'text-gray-500 hover:text-gray-300'}`}
+        >
+          45°
+        </button>
+      </span>
+      <button
+        onClick={() => useInflationStore.getState().toggleInflation()}
+        className={`px-1.5 py-0 rounded text-[10px] ${showInflation ? 'text-orange-400 bg-orange-900/40 font-medium' : 'text-gray-500 hover:text-gray-300'}`}
+      >
+        Inflate
+      </button>
       <span className="ml-auto flex items-center gap-3">
         <button
           onClick={onToggleTeleop}

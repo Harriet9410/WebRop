@@ -3,6 +3,7 @@ import { useRobotPoseStore } from './robotPoseStore';
 import { useRosStore } from './rosStore';
 import { publishCmdVel } from '../ros/connection';
 import { setMockRobotPose } from '../ros/mock';
+import { useToastStore } from './toastStore';
 
 const TELEOP_LINEAR = 0.3;
 const TELEOP_ANGULAR = 0.8;
@@ -20,7 +21,19 @@ export const useTeleopStore = create<TeleopState>((set, get) => ({
   keys: new Set(),
   teleopEnabled: false,
 
-  setTeleopEnabled: (enabled) => set({ teleopEnabled: enabled }),
+  setTeleopEnabled: (enabled) => {
+    set({ teleopEnabled: enabled });
+    if (enabled) {
+      const isMock = useRosStore.getState().isMock;
+      const connected = useRosStore.getState().status === 'connected';
+      if (!isMock && !connected) {
+        useToastStore.getState().addToast('Connect to ROS first for teleop', 'warning');
+        set({ teleopEnabled: false });
+        return;
+      }
+      useToastStore.getState().addToast(isMock ? 'WASD Teleop enabled (mock)' : 'WASD Teleop enabled (cmd_vel)', 'info');
+    }
+  },
 
   keyDown: (key) => {
     const k = key.toLowerCase();

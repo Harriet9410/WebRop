@@ -12,6 +12,7 @@ let ros: Ros | null = null;
 let mapSub: Topic | null = null;
 let odomSub: Topic | null = null;
 let navPlanSub: Topic | null = null;
+let cmdVelTopic: Topic | null = null;
 let mapOriginX = 0;
 let mapOriginY = 0;
 let mapResolution = 0.05;
@@ -59,6 +60,7 @@ export function disconnect(): void {
   if (mapSub) { mapSub.unsubscribe(); mapSub = null; }
   if (odomSub) { odomSub.unsubscribe(); odomSub = null; }
   if (navPlanSub) { navPlanSub.unsubscribe(); navPlanSub = null; }
+  cmdVelTopic = null;
   if (ros) { ros.close(); ros = null; }
   useRosStore.getState().setStatus('disconnected');
   useMapStore.getState().setGrid(null as unknown as OccupancyGridData);
@@ -128,6 +130,12 @@ function subscribeAll(): void {
     const m = msg as RosMsg_Path;
     const scenePath = m.poses.map((p) => rosToScene(p.pose.position.x, p.pose.position.y));
     useNavPlanStore.getState().setMoveBasePlan(scenePath);
+  });
+
+  cmdVelTopic = new Topic({
+    ros,
+    name: '/cmd_vel',
+    messageType: 'geometry_msgs/Twist',
   });
 }
 
@@ -215,12 +223,14 @@ export function publishHRPSpeeds(speeds: SegmentSpeed[]): void {
 
 export function publishCmdVel(linearX: number, angularZ: number): void {
   if (!ros) return;
-  const topic = new Topic({
-    ros,
-    name: '/cmd_vel',
-    messageType: 'geometry_msgs/Twist',
-  });
-  topic.publish({
+  if (!cmdVelTopic) {
+    cmdVelTopic = new Topic({
+      ros,
+      name: '/cmd_vel',
+      messageType: 'geometry_msgs/Twist',
+    });
+  }
+  cmdVelTopic.publish({
     linear: { x: linearX, y: 0, z: 0 },
     angular: { x: 0, y: 0, z: angularZ },
   } as never);

@@ -6,6 +6,7 @@ import type { AppMode } from './components/ui/ModeSelector';
 import { useHRZStore } from './stores/hrzStore';
 import { useHRPStore } from './stores/hrpStore';
 import { useRosStore } from './stores/rosStore';
+import { useUndoStore } from './stores/undoStore';
 import { save, load } from './utils/persistence';
 
 function App() {
@@ -33,6 +34,21 @@ function App() {
       setMode('navigate');
     }
   }, [isMock, mode]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        useUndoStore.getState().undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        useUndoStore.getState().redo();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   return (
     <div className="flex h-screen w-screen bg-gray-900 text-white">

@@ -4,6 +4,7 @@ import { useRosStore } from '../../stores/rosStore';
 import { useWaypointStore } from '../../stores/waypointStore';
 import { useMapStore } from '../../stores/mapStore';
 import { useMapEditorStore, MapTool } from '../../stores/mapEditorStore';
+import { useUndoStore } from '../../stores/undoStore';
 import { publishHRZZones, publishHRPPath, publishHRPSpeeds } from '../../ros/connection';
 import { mockPublishHRZZones, mockPublishHRPPath, mockStartWaypointNav, mockCancelNav, mockResetMap, mockClearMap } from '../../ros/mock';
 import { sceneToRos } from '../../utils/coordinate';
@@ -243,7 +244,7 @@ export function ActionPanel({ mode }: ActionPanelProps) {
             Cancel Drawing
           </button>
           <button
-            onClick={hrz.clearAll}
+            onClick={() => { useUndoStore.getState().pushUndo(); hrz.clearAll(); }}
             className="w-full text-xs bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded"
           >
             Clear All Zones
@@ -336,7 +337,7 @@ export function ActionPanel({ mode }: ActionPanelProps) {
             {isMock ? 'Follow Drawn Path' : 'Publish HRP Path'} ({hrp.path.length} pts)
           </button>
           <button
-            onClick={hrp.clearPath}
+            onClick={() => { useUndoStore.getState().pushUndo(); hrp.clearPath(); }}
             className="w-full text-xs bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded"
           >
             Clear Path

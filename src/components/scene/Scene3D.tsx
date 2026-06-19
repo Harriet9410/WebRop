@@ -17,6 +17,7 @@ import { useRosStore } from '../../stores/rosStore';
 import { useWaypointStore, Waypoint } from '../../stores/waypointStore';
 import { useMapEditorStore } from '../../stores/mapEditorStore';
 import { useDragStore } from '../../stores/dragStore';
+import { useUndoStore } from '../../stores/undoStore';
 import { mockPaintBrush, mockPaintRect, mockPlaceRobot } from '../../ros/mock';
 import { publishNavGoal } from '../../ros/connection';
 import { Vec2, dist } from '../../utils/coordinate';
@@ -75,11 +76,13 @@ function SceneEvents({ mode }: { mode: AppMode }) {
             }
           }
           if (closestZone && closestIdx >= 0) {
+            useUndoStore.getState().pushUndo();
             dragState.current = { type: 'hrz', zoneId: closestZone.id, vertexIndex: closestIdx };
             useDragStore.getState().setDragInfo({ type: 'hrz', zoneId: closestZone.id, vertexIndex: closestIdx });
             return;
           }
         }
+        useUndoStore.getState().pushUndo();
         store.addVertex(pt);
       } else if (mode === 'hrp') {
         const store = useHRPStore.getState();
@@ -94,11 +97,13 @@ function SceneEvents({ mode }: { mode: AppMode }) {
             }
           }
           if (closestIdx >= 0) {
+            useUndoStore.getState().pushUndo();
             dragState.current = { type: 'hrp', vertexIndex: closestIdx };
             useDragStore.getState().setDragInfo({ type: 'hrp', vertexIndex: closestIdx });
             return;
           }
         }
+        useUndoStore.getState().pushUndo();
         store.startDrawing();
         store.addPoint(pt);
         lastPathPoint.current = pt;

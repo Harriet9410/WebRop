@@ -1,13 +1,14 @@
-import { useHRZStore } from '../../stores/hrzStore';
-import { useHRPStore, SPEED_LEVELS, speedToColor, SegmentSpeed } from '../../stores/hrpStore';
+import { useHRZStore, ZONE_COLORS, ZoneType, ZONE_SPEED } from '../../stores/hrzStore';
+import { useHRPStore, SPEED_LEVELS, speedToColor, SegmentSpeed, DEFAULT_SPEED } from '../../stores/hrpStore';
 import { useRosStore } from '../../stores/rosStore';
 import { useWaypointStore } from '../../stores/waypointStore';
 import { useMapStore } from '../../stores/mapStore';
 import { useMapEditorStore, MapTool } from '../../stores/mapEditorStore';
 import { useUndoStore } from '../../stores/undoStore';
+import { useMeasureStore } from '../../stores/measureStore';
 import { publishHRZZones, publishHRPPath, publishHRPSpeeds } from '../../ros/connection';
 import { mockPublishHRZZones, mockPublishHRPPath, mockStartWaypointNav, mockCancelNav, mockResetMap, mockClearMap } from '../../ros/mock';
-import { sceneToRos } from '../../utils/coordinate';
+import { sceneToRos, dist } from '../../utils/coordinate';
 import { checkPathReachability } from '../../utils/pathCheck';
 import type { AppMode } from '../ui/ModeSelector';
 
@@ -60,6 +61,53 @@ export function ActionPanel({ mode }: ActionPanelProps) {
     if (!grid || hrp.path.length < 2) return;
     const blocked = checkPathReachability(grid, hrp.path);
     hrp.setBlockedSegments(blocked);
+  };
+
+  const handleAutoSpeed = () => {
+    const zones = hrz.zones;
+    if (zones.length === 0 || hrp.path.length < 2) return;
+    useUndoStore.getState().pushUndo();
+    const newSpeeds = [...hrp.segmentSpeeds];
+    for (let i = 0; i < hrp.path.length - 1; i++) {
+      const midX = (hrp.path[i].x + hrp.path[i + 1].x) / 2;
+      const midZ = (hrp.path[i].z + hrp.path[i + 1].z) / 2;
+      let matchedSpeed: number | null = null;
+      for (const zone of zones) {
+        if (pointInPolygon(midX, midZ, zone.vertices)) {
+          const zoneSpeed = ZONE_SPEED[zone.zoneType];
+          if (zone.zoneType === 'forbidden') {
+            matchedSpeed = 0.05;
+          } else if (matchedSpeed === null || zoneSpeed < matchedSpeed) {
+            matchedSpeed = zoneSpeed;
+          }
+        }
+      }
+      if (matchedSpeed !== null) {
+        newSpeeds[i] = matchedSpeed;
+      }
+    }
+    useHRPStore.setState({ segmentSpeeds: newSpeeds });
+  };
+
+  const calcTotalDist = () => {
+    let total = 0;
+    for (let i = 0; i < hrp.path.length - 1; i++) {
+      total += dist(hrp.path[i], hrp.path[i + 1]);
+    }
+    return total;
+  };
+
+  const calcEstTime = () => {
+    let totalSec = 0;
+    for (let i = 0; i < hrp.path.length - 1; i++) {
+      const d = dist(hrp.path[i], hrp.path[i + 1]);
+      const speed = hrp.segmentSpeeds[i] || DEFAULT_SPEED;
+      totalSec += speed > 0 ? d / speed : 0;
+    }
+    if (totalSec < 60) return `${totalSec.toFixed(0)}s`;
+    const min = Math.floor(totalSec / 60);
+    const sec = Math.round(totalSec % 60);
+    return `${min}m${sec}s`;
   };
 
   const handleStartNav = () => {
@@ -230,6 +278,51 @@ export function ActionPanel({ mode }: ActionPanelProps) {
           <div className="text-xs text-gray-400">
             Left-click to add vertices. Click the first vertex (yellow) to close. Hold Shift to snap to 0.5m grid.
           </div>
+          <div className="space-y-1">
+            <div className="text-xs text-gray-300 font-medium">Zone Type</div>
+            <div className="flex gap-1">
+              {(['forbidden', 'slow', 'charging'] as ZoneType[]).map((zt) => (
+                <button
+                  key={zt}
+                  onClick={() => hrz.setCurrentZoneType(zt)}
+                  className={`flex-1 text-[10px] px-1.5 py-1 rounded ${
+                    hrz.currentZoneType === zt ? 'ring-2 ring-white' : ''
+                  }`}
+                  style={{ backgroundColor: ZONE_COLORS[zt] + '99', color: '#fff' }}
+                >
+                  {zt}
+                </button>
+              ))}
+            </div>
+          </div>
+          {hrz.zones.length > 0 && (
+            <div className="max-h-32 overflow-y-auto space-y-0.5">
+              {hrz.zones.map((z) => (
+                <div key={z.id} className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-gray-700/50">
+                  <span
+                    className="w-3 h-3 rounded shrink-0"
+                    style={{ backgroundColor: ZONE_COLORS[z.zoneType] }}
+                  />
+                  <span className="text-gray-300 flex-1">{z.zoneType}</span>
+                  <select
+                    value={z.zoneType}
+                    onChange={(e) => hrz.setZoneType(z.id, e.target.value as ZoneType)}
+                    className="text-[10px] bg-gray-600 text-white px-1 py-0.5 rounded"
+                  >
+                    <option value="forbidden">forbidden</option>
+                    <option value="slow">slow</option>
+                    <option value="charging">charging</option>
+                  </select>
+                  <button
+                    onClick={() => { useUndoStore.getState().pushUndo(); hrz.removeZone(z.id); }}
+                    className="text-red-400 hover:text-red-300 px-0.5"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <button
             onClick={handlePublishHRZ}
             disabled={!canPublish || hrz.zones.length === 0}
@@ -260,6 +353,20 @@ export function ActionPanel({ mode }: ActionPanelProps) {
             {isMock
               ? 'Draw a path by clicking & dragging. Robot will follow with obstacle avoidance. Hold Shift to snap to 0.5m grid.'
               : 'Draw a path by clicking & dragging, then publish to ROS. Hold Shift to snap to 0.5m grid.'}
+          </div>
+          <div className="flex gap-1">
+            <button
+              onClick={() => useMeasureStore.getState().startMeasure()}
+              className="flex-1 text-[10px] bg-cyan-700/60 hover:bg-cyan-600/60 text-cyan-200 px-1.5 py-1 rounded"
+            >
+              Measure
+            </button>
+            <button
+              onClick={() => useMeasureStore.getState().clearMeasure()}
+              className="flex-1 text-[10px] bg-gray-700/60 hover:bg-gray-600/60 text-gray-300 px-1.5 py-1 rounded"
+            >
+              Clear Measure
+            </button>
           </div>
           {hrp.path.length >= 2 && (
             <div className="space-y-1.5">
@@ -345,8 +452,34 @@ export function ActionPanel({ mode }: ActionPanelProps) {
           <div className="text-xs text-gray-500">
             Points: {hrp.path.length} | Segments: {hrp.segmentSpeeds.length}
           </div>
-        </>
-      )}
-    </div>
-  );
+          {hrp.path.length >= 2 && (
+            <div className="space-y-1">
+              <button
+                onClick={handleAutoSpeed}
+                className="w-full text-[10px] bg-purple-700/60 hover:bg-purple-600/60 text-purple-200 px-1.5 py-1 rounded"
+              >
+                Auto Speed (Zone Match)
+              </button>
+              <div className="text-xs text-gray-400">
+                Est. time: <span className="text-cyan-400 font-mono">{calcEstTime()}</span>
+                {' | '}Total: <span className="text-cyan-400 font-mono">{calcTotalDist().toFixed(1)}m</span>
+              </div>
+            </div>
+          )}
+         </>
+       )}
+     </div>
+   );
+}
+
+function pointInPolygon(px: number, pz: number, vertices: { x: number; z: number }[]): boolean {
+  let inside = false;
+  for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+    const xi = vertices[i].x, zi = vertices[i].z;
+    const xj = vertices[j].x, zj = vertices[j].z;
+    if (((zi > pz) !== (zj > pz)) && (px < (xj - xi) * (pz - zi) / (zj - zi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
 }

@@ -10,6 +10,7 @@ import { NavPathVisual } from './NavPathVisual';
 import { MapEditPreview } from './MapEditPreview';
 import { MiniMapBridge, MiniMapOverlay } from './MiniMap';
 import { BreadcrumbTrail } from './BreadcrumbTrail';
+import { MeasureVisual } from './MeasureVisual';
 import type { AppMode } from '../ui/ModeSelector';
 import { useHRZStore, HRZZone } from '../../stores/hrzStore';
 import { useHRPStore } from '../../stores/hrpStore';
@@ -20,6 +21,7 @@ import { useMapEditorStore } from '../../stores/mapEditorStore';
 import { useDragStore } from '../../stores/dragStore';
 import { useUndoStore } from '../../stores/undoStore';
 import { useNavPlanStore } from '../../stores/navPlanStore';
+import { useMeasureStore } from '../../stores/measureStore';
 import { mockPaintBrush, mockPaintRect, mockPlaceRobot } from '../../ros/mock';
 import { publishNavGoal } from '../../ros/connection';
 import { Vec2, dist } from '../../utils/coordinate';
@@ -71,6 +73,12 @@ function SceneEvents({ mode }: { mode: AppMode }) {
       const snapMode = mode === 'hrz' || mode === 'hrp';
       const pt = getScenePoint(e, snapMode);
       if (!pt) return;
+
+      const measureStore = useMeasureStore.getState();
+      if (measureStore.measuring) {
+        measureStore.addPoint(pt);
+        return;
+      }
 
       if (mode === 'hrz') {
         const store = useHRZStore.getState();
@@ -219,14 +227,59 @@ function SceneEvents({ mode }: { mode: AppMode }) {
       }
     };
 
+    const onContextMenu = (e: PointerEvent) => {
+      e.preventDefault();
+      if (mode !== 'hrp') return;
+      const store = useHRPStore.getState();
+      if (store.isDrawing || store.path.length < 2) return;
+
+      const pt = getScenePoint(e, true);
+      if (!pt) return;
+
+      let closestSeg = -1;
+      let closestDist = 0.3;
+      for (let i = 0; i < store.path.length - 1; i++) {
+        const a = store.path[i];
+        const b = store.path[i + 1];
+        const abx = b.x - a.x;
+        const abz = b.z - a.z;
+        const apx = pt.x - a.x;
+        const apz = pt.z - a.z;
+        const ab2 = abx * abx + abz * abz;
+        if (ab2 === 0) continue;
+        let t = (apx * abx + apz * abz) / ab2;
+        t = Math.max(0, Math.min(1, t));
+        const cx = a.x + t * abx;
+        const cz = a.z + t * abz;
+        const dx = pt.x - cx;
+        const dz = pt.z - cz;
+        const d = Math.sqrt(dx * dx + dz * dz);
+        if (d < closestDist) {
+          closestDist = d;
+          closestSeg = i;
+        }
+      }
+
+      if (closestSeg >= 0) {
+        useUndoStore.getState().pushUndo();
+        const newPath = [...store.path];
+        const newSpeeds = [...store.segmentSpeeds];
+        newPath.splice(closestSeg + 1, 0, pt);
+        newSpeeds.splice(closestSeg, 1, newSpeeds[closestSeg], newSpeeds[closestSeg]);
+        useHRPStore.setState({ path: newPath, segmentSpeeds: newSpeeds, blockedSegments: [] });
+      }
+    };
+
     canvas.addEventListener('pointerdown', onPointerDown);
     canvas.addEventListener('pointermove', onPointerMove);
     canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('contextmenu', onContextMenu);
 
     return () => {
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);
+      canvas.removeEventListener('contextmenu', onContextMenu);
     };
   }, [mode, getScenePoint, gl]);
 
@@ -281,6 +334,7 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       <CameraControls mode={mode} followRobot={followRobot} />
       <MiniMapBridge />
       <BreadcrumbTrail />
+      <MeasureVisual />
       <gridHelper args={[50, 50, '#555', '#333']} position={[5, 0, 5]} />
     </Canvas>
     <MiniMapOverlay />

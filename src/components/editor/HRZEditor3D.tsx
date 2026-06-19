@@ -1,4 +1,4 @@
-import { useHRZStore } from '../../stores/hrzStore';
+import { useHRZStore, ZONE_COLORS } from '../../stores/hrzStore';
 import { HRZPolygon } from './HRZPolygon';
 
 export function HRZEditor3D() {
@@ -8,7 +8,7 @@ export function HRZEditor3D() {
   return (
     <group>
       {zones.map((zone) => (
-        <HRZPolygon key={zone.id} zoneId={zone.id} vertices={zone.vertices} closed={true} />
+        <HRZPolygon key={zone.id} zoneId={zone.id} vertices={zone.vertices} color={ZONE_COLORS[zone.zoneType]} closed={true} />
       ))}
       {currentVertices.length > 0 && (
         <HRZPolygon

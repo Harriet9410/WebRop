@@ -5,7 +5,6 @@ import { useWaypointStore } from '../../stores/waypointStore';
 import { useMapStore } from '../../stores/mapStore';
 import { useMapEditorStore, MapTool } from '../../stores/mapEditorStore';
 import { useUndoStore } from '../../stores/undoStore';
-import { useMeasureStore } from '../../stores/measureStore';
 import { publishHRZZones, publishHRPPath, publishHRPSpeeds, publishNavGoal } from '../../ros/connection';
 import { mockPublishHRZZones, mockPublishHRPPath, mockStartWaypointNav, mockCancelNav, mockResetMap, mockClearMap } from '../../ros/mock';
 import { sceneToRos, dist } from '../../utils/coordinate';
@@ -149,20 +148,6 @@ export function ActionPanel({ mode }: ActionPanelProps) {
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-1">
-        <button
-          onClick={() => useMeasureStore.getState().startMeasure()}
-          className="flex-1 text-[10px] bg-cyan-700/60 hover:bg-cyan-600/60 text-cyan-200 px-1.5 py-1 rounded"
-        >
-          Measure
-        </button>
-        <button
-          onClick={() => useMeasureStore.getState().clearMeasure()}
-          className="flex-1 text-[10px] bg-gray-700/60 hover:bg-gray-600/60 text-gray-300 px-1.5 py-1 rounded"
-        >
-          Clear Measure
-        </button>
-      </div>
       {mode === 'navigate' && (
         <>
           <div className="text-xs text-gray-400">

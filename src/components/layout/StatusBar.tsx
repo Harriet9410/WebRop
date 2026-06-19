@@ -5,7 +5,6 @@ import { useHRPStore } from '../../stores/hrpStore';
 import { useUndoStore } from '../../stores/undoStore';
 import { useRobotPoseStore } from '../../stores/robotPoseStore';
 import { useTeleopStore } from '../../stores/teleopStore';
-import { useMeasureStore } from '../../stores/measureStore';
 
 interface StatusBarProps {
   followRobot: boolean;
@@ -23,8 +22,6 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
   const linearV = useRobotPoseStore((s) => s.linearVelocity);
   const angularV = useRobotPoseStore((s) => s.angularVelocity);
   const teleopEnabled = useTeleopStore((s) => s.teleopEnabled);
-  const measureDist = useMeasureStore((s) => s.distance);
-  const measuring = useMeasureStore((s) => s.measuring);
   const [shiftHeld, setShiftHeld] = useState(false);
 
   useEffect(() => {
@@ -61,8 +58,6 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
         <span className="text-cyan-400 font-mono">{(angularV * 180 / Math.PI).toFixed(0)}°/s</span>
       </span>
       <span className="ml-auto flex items-center gap-3">
-        {measuring && <span className="text-cyan-400 font-medium animate-pulse">MEASURING...</span>}
-        {measureDist > 0 && <span className="text-cyan-400 font-mono font-bold">{measureDist.toFixed(3)}m</span>}
         <button
           onClick={onToggleTeleop}
           className={`px-1.5 py-0 rounded ${teleopEnabled ? 'text-yellow-400 bg-yellow-900/40 font-medium' : 'text-gray-600 hover:text-gray-400'}`}

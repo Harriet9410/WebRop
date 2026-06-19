@@ -10,7 +10,6 @@ import { NavPathVisual } from './NavPathVisual';
 import { MapEditPreview } from './MapEditPreview';
 import { MiniMapBridge, MiniMapOverlay } from './MiniMap';
 import { BreadcrumbTrail } from './BreadcrumbTrail';
-import { MeasureVisual } from './MeasureVisual';
 import type { AppMode } from '../ui/ModeSelector';
 import { useHRZStore, HRZZone } from '../../stores/hrzStore';
 import { useHRPStore } from '../../stores/hrpStore';
@@ -21,7 +20,6 @@ import { useMapEditorStore } from '../../stores/mapEditorStore';
 import { useDragStore } from '../../stores/dragStore';
 import { useUndoStore } from '../../stores/undoStore';
 import { useNavPlanStore } from '../../stores/navPlanStore';
-import { useMeasureStore } from '../../stores/measureStore';
 import { mockPaintBrush, mockPaintRect, mockPlaceRobot } from '../../ros/mock';
 import { publishNavGoal } from '../../ros/connection';
 import { Vec2, dist } from '../../utils/coordinate';
@@ -73,13 +71,6 @@ function SceneEvents({ mode }: { mode: AppMode }) {
       const snapMode = mode === 'hrz' || mode === 'hrp';
       const pt = getScenePoint(e, snapMode);
       if (!pt) return;
-
-      const measureStore = useMeasureStore.getState();
-      if (measureStore.measuring) {
-        const measurePt = getScenePoint(e, true);
-        if (measurePt) measureStore.addPoint(measurePt);
-        return;
-      }
 
       if (mode === 'hrz') {
         const store = useHRZStore.getState();
@@ -335,7 +326,6 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       <CameraControls mode={mode} followRobot={followRobot} />
       <MiniMapBridge />
       <BreadcrumbTrail />
-      <MeasureVisual />
       <gridHelper args={[50, 50, '#555', '#333']} position={[5, 0, 5]} />
     </Canvas>
     <MiniMapOverlay />

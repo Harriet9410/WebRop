@@ -72,6 +72,7 @@ function App() {
 
   const [followRobot, setFollowRobot] = useState(false);
   const teleopEnabled = useTeleopStore((s) => s.teleopEnabled);
+  const toggleTeleop = () => useTeleopStore.getState().setTeleopEnabled(!teleopEnabled);
 
   return (
     <div className="flex h-screen w-screen bg-gray-900 text-white">
@@ -80,7 +81,7 @@ function App() {
         <div className="flex-1">
           <Scene3D mode={mode} followRobot={followRobot} />
         </div>
-        <StatusBar teleopEnabled={teleopEnabled} followRobot={followRobot} onToggleFollow={() => setFollowRobot((f) => !f)} />
+        <StatusBar followRobot={followRobot} onToggleFollow={() => setFollowRobot((f) => !f)} onToggleTeleop={toggleTeleop} />
       </div>
       <ToastOverlay />
     </div>

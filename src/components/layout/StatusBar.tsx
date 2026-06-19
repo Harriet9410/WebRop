@@ -7,12 +7,12 @@ import { useRobotPoseStore } from '../../stores/robotPoseStore';
 import { useTeleopStore } from '../../stores/teleopStore';
 
 interface StatusBarProps {
-  teleopEnabled: boolean;
   followRobot: boolean;
   onToggleFollow: () => void;
+  onToggleTeleop: () => void;
 }
 
-export function StatusBar({ teleopEnabled, followRobot, onToggleFollow }: StatusBarProps) {
+export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: StatusBarProps) {
   const rosStatus = useRosStore((s) => s.status);
   const isMock = useRosStore((s) => s.isMock);
   const zoneCount = useHRZStore((s) => s.zones.length);
@@ -21,6 +21,7 @@ export function StatusBar({ teleopEnabled, followRobot, onToggleFollow }: Status
   const canRedo = useUndoStore((s) => s.canRedo);
   const linearV = useRobotPoseStore((s) => s.linearVelocity);
   const angularV = useRobotPoseStore((s) => s.angularVelocity);
+  const teleopEnabled = useTeleopStore((s) => s.teleopEnabled);
   const [shiftHeld, setShiftHeld] = useState(false);
 
   useEffect(() => {
@@ -57,7 +58,12 @@ export function StatusBar({ teleopEnabled, followRobot, onToggleFollow }: Status
         <span className="text-cyan-400 font-mono">{(angularV * 180 / Math.PI).toFixed(0)}°/s</span>
       </span>
       <span className="ml-auto flex items-center gap-3">
-        {teleopEnabled && <span className="text-yellow-400 font-medium">WASD</span>}
+        <button
+          onClick={onToggleTeleop}
+          className={`px-1.5 py-0 rounded ${teleopEnabled ? 'text-yellow-400 bg-yellow-900/40 font-medium' : 'text-gray-600 hover:text-gray-400'}`}
+        >
+          WASD
+        </button>
         {shiftHeld && <span className="text-cyan-400 font-medium">SNAP 0.5m</span>}
         <button
           onClick={onToggleFollow}

@@ -16,33 +16,35 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
 
   return (
     <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col h-full overflow-hidden">
-      <div className="p-3 border-b border-gray-700">
+      <div className="p-3 border-b border-gray-700 shrink-0">
         <h1 className="text-sm font-bold text-white">MRReP / MRHaD</h1>
         <p className="text-xs text-gray-400 mt-0.5">Web Editor</p>
       </div>
 
-      <div className="p-3 border-b border-gray-700">
+      <div className="p-3 border-b border-gray-700 shrink-0">
         <div className="text-xs text-gray-400 mb-1.5 font-medium">ROS Connection</div>
         <ROSConnection />
       </div>
 
-      {isMock && <MapSelector />}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {isMock && <MapSelector />}
 
-      <div className="p-3 border-b border-gray-700">
-        <div className="text-xs text-gray-400 mb-1.5 font-medium">Mode</div>
-        <ModeSelector mode={mode} onChange={onModeChange} />
+        <div className="p-3 border-b border-gray-700">
+          <div className="text-xs text-gray-400 mb-1.5 font-medium">Mode</div>
+          <ModeSelector mode={mode} onChange={onModeChange} />
+        </div>
+
+        <div className="p-3 border-b border-gray-700">
+          <div className="text-xs text-gray-400 mb-1.5 font-medium">Actions</div>
+          <ActionPanel mode={mode} />
+        </div>
+
+        {isMock && <MockLogPanel />}
+
+        <SnapshotPanel />
       </div>
 
-      <div className="p-3 border-b border-gray-700">
-        <div className="text-xs text-gray-400 mb-1.5 font-medium">Actions</div>
-        <ActionPanel mode={mode} />
-      </div>
-
-      {isMock && <MockLogPanel />}
-
-      <SnapshotPanel />
-
-      <div className="p-3 border-t border-gray-700 text-xs text-gray-500 mt-auto">
+      <div className="p-3 border-t border-gray-700 text-xs text-gray-500 shrink-0">
         <div>Right-click: Rotate</div>
         <div>Middle-click: Pan</div>
         <div>Scroll: Zoom</div>

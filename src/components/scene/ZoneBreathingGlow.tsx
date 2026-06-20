@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { useHRZStore, ZONE_COLORS } from '../../stores/hrzStore';
+import { useHRZStore, ZONE_COLORS, ZONE_OUTLINE_COLORS, ZONE_BREATH_SPEED } from '../../stores/hrzStore';
 
 export function ZoneBreathingGlow() {
   const zones = useHRZStore((s) => s.zones);
@@ -17,11 +17,15 @@ export function ZoneBreathingGlow() {
     <group>
       {zones.map((zone) => {
         const color = ZONE_COLORS[zone.zoneType];
+        const outlineColor = ZONE_OUTLINE_COLORS[zone.zoneType];
+        const breathSpeed = ZONE_BREATH_SPEED[zone.zoneType];
         return (
           <ZoneGlow
             key={zone.id}
             vertices={zone.vertices}
             color={color}
+            outlineColor={outlineColor}
+            breathSpeed={breathSpeed}
             timeRef={timeRef}
           />
         );
@@ -30,14 +34,30 @@ export function ZoneBreathingGlow() {
   );
 }
 
-function ZoneGlow({ vertices, color, timeRef }: { vertices: { x: number; z: number }[]; color: string; timeRef: React.RefObject<number> }) {
+function ZoneGlow({ vertices, color, outlineColor, breathSpeed, timeRef }: {
+  vertices: { x: number; z: number }[];
+  color: string;
+  outlineColor: string;
+  breathSpeed: number;
+  timeRef: React.RefObject<number>;
+}) {
   const lineRef = useRef<THREE.Line>(null);
+  const dotRefs = useRef<(THREE.Mesh | null)[]>([]);
 
   useFrame(() => {
-    if (!lineRef.current) return;
     const t = timeRef.current;
-    const pulse = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(t * 2));
-    (lineRef.current.material as THREE.LineBasicMaterial).opacity = pulse;
+    const sin = 0.5 + 0.5 * Math.sin(t * breathSpeed);
+    const pulse = 0.3 + 0.7 * sin;
+    if (lineRef.current) {
+      (lineRef.current.material as THREE.LineBasicMaterial).opacity = pulse;
+    }
+    for (const mesh of dotRefs.current) {
+      if (mesh) {
+        (mesh.material as THREE.MeshBasicMaterial).opacity = pulse * 0.7;
+        const s = 0.8 + 0.4 * sin;
+        mesh.scale.setScalar(s);
+      }
+    }
   });
 
   if (vertices.length < 3) return null;
@@ -51,11 +71,23 @@ function ZoneGlow({ vertices, color, timeRef }: { vertices: { x: number; z: numb
   }
 
   return (
-    <line ref={lineRef}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={pts.length} array={positions} itemSize={3} />
-      </bufferGeometry>
-      <lineBasicMaterial color={color} transparent opacity={0.5} depthWrite={false} />
-    </line>
+    <group>
+      <line ref={lineRef}>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" count={pts.length} array={positions} itemSize={3} />
+        </bufferGeometry>
+        <lineBasicMaterial color={outlineColor} transparent opacity={0.5} depthWrite={false} />
+      </line>
+      {vertices.map((v, i) => (
+        <mesh
+          key={i}
+          ref={(el) => { dotRefs.current[i] = el; }}
+          position={[v.x, 0.06, v.z]}
+        >
+          <sphereGeometry args={[0.1, 12, 12]} />
+          <meshBasicMaterial color={color} transparent opacity={0.5} depthWrite={false} />
+        </mesh>
+      ))}
+    </group>
   );
 }

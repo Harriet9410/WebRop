@@ -1,4 +1,4 @@
-import { useHRZStore, ZONE_COLORS, ZoneType, ZONE_SPEED } from '../../stores/hrzStore';
+import { useHRZStore, ZONE_COLORS, ZONE_OUTLINE_COLORS, ZoneType, ZONE_SPEED, computeZoneArea } from '../../stores/hrzStore';
 import { useHRPStore, SPEED_LEVELS, speedToColor, DEFAULT_SPEED } from '../../stores/hrpStore';
 import { useRosStore } from '../../stores/rosStore';
 import { useMapStore } from '../../stores/mapStore';
@@ -52,6 +52,8 @@ export function ActionPanel({ mode }: ActionPanelProps) {
     const zones = useHRZStore.getState().zones;
     const data = zones.map((z) => ({
       id: z.id,
+      name: z.name,
+      zoneType: z.zoneType,
       vertices: z.vertices.map((v) => sceneToRos(v.x, v.z)),
     }));
     const json = JSON.stringify(data);
@@ -366,21 +368,43 @@ export function ActionPanel({ mode }: ActionPanelProps) {
           <div className="text-xs text-gray-400">
             {t('Left-click to add vertices. Click the first vertex (yellow) to close. Hold Shift to snap to 0.5m grid.', locale)}
           </div>
+          <div className="flex gap-1 text-[10px]">
+            {(['forbidden', 'slow', 'charging'] as ZoneType[]).map((zt) => (
+              <span key={zt} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded" style={{ backgroundColor: ZONE_COLORS[zt] + '33', border: `1px solid ${ZONE_OUTLINE_COLORS[zt]}88` }}>
+                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: ZONE_COLORS[zt] }} />
+                <span style={{ color: ZONE_COLORS[zt] }}>{t(zt, locale)}</span>
+                <span className="text-gray-500">{ZONE_SPEED[zt]}m/s</span>
+              </span>
+            ))}
+          </div>
           {hrzZones.length > 0 && (
-            <div className="max-h-32 overflow-y-auto space-y-0.5">
-              {hrzZones.map((z) => (
-                <div key={z.id} className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-gray-700/50">
-                  <span className="w-3 h-3 rounded shrink-0" style={{ backgroundColor: ZONE_COLORS[z.zoneType] }} />
-                  <div className="flex gap-1 flex-1">
-                    {(['forbidden', 'slow', 'charging'] as ZoneType[]).map((zt) => (
-                      <button key={zt} type="button" onMouseDown={(e) => { e.stopPropagation(); useUndoStore.getState().pushUndo(); useHRZStore.getState().setZoneType(z.id, zt); }} className={`flex-1 text-[10px] px-1 py-0.5 rounded cursor-pointer select-none ${z.zoneType === zt ? 'ring-2 ring-white font-bold' : 'opacity-50 hover:opacity-90'}`} style={{ backgroundColor: ZONE_COLORS[zt] + 'cc', color: '#fff' }} aria-label={t(zt, locale)} aria-pressed={z.zoneType === zt}>
-                        {t(zt, locale)}
-                      </button>
-                    ))}
+            <div className="max-h-40 overflow-y-auto space-y-0.5">
+              {hrzZones.map((z, zi) => {
+                const area = computeZoneArea(z.vertices);
+                return (
+                  <div key={z.id} className="text-xs px-2 py-1.5 rounded bg-gray-700/50 space-y-1">
+                    <div className="flex items-center gap-1">
+                      <span className="w-3 h-3 rounded shrink-0" style={{ backgroundColor: ZONE_COLORS[z.zoneType] }} />
+                      <input
+                        type="text"
+                        value={z.name || `Zone ${zi + 1}`}
+                        onChange={(e) => useHRZStore.getState().renameZone(z.id, e.target.value)}
+                        className="flex-1 text-[10px] bg-transparent text-gray-200 border-b border-transparent hover:border-gray-500 focus:border-blue-400 outline-none min-w-0"
+                        aria-label={t('Zone name', locale)}
+                      />
+                      <span className="text-[10px] text-gray-500 shrink-0">{area.toFixed(2)}m²</span>
+                      <button onClick={() => { useUndoStore.getState().pushUndo(); useHRZStore.getState().removeZone(z.id); }} className="text-red-400 hover:text-red-300 px-0.5 shrink-0" aria-label="Remove zone">✕</button>
+                    </div>
+                    <div className="flex gap-1">
+                      {(['forbidden', 'slow', 'charging'] as ZoneType[]).map((zt) => (
+                        <button key={zt} type="button" onMouseDown={(e) => { e.stopPropagation(); useUndoStore.getState().pushUndo(); useHRZStore.getState().setZoneType(z.id, zt); }} className={`flex-1 text-[10px] px-1 py-0.5 rounded cursor-pointer select-none ${z.zoneType === zt ? 'ring-2 ring-white font-bold' : 'opacity-50 hover:opacity-90'}`} style={{ backgroundColor: ZONE_COLORS[zt] + 'cc', color: '#fff' }} aria-label={t(zt, locale)} aria-pressed={z.zoneType === zt}>
+                          {t(zt, locale)}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <button onClick={() => { useUndoStore.getState().pushUndo(); useHRZStore.getState().removeZone(z.id); }} className="text-red-400 hover:text-red-300 px-0.5" aria-label="Remove zone">✕</button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
           <button onClick={handlePublishHRZ} disabled={!canPublish || hrzZones.length === 0} className="w-full text-xs bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded" aria-label={isMock ? t('Apply Zones to Map', locale) : t('Publish HRZ Zones', locale)}>

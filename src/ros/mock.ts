@@ -4,6 +4,8 @@ import { useFleetStore } from '../stores/fleetStore';
 import { useRobotPoseStore } from '../stores/robotPoseStore';
 import { useToastStore } from '../stores/toastStore';
 import type { SegmentSpeed } from '../stores/hrpStore';
+import type { ZoneType } from '../stores/hrzStore';
+import { ZONE_COST_VALUE } from '../stores/hrzStore';
 import type { OccupancyGridData } from '../utils/mapRenderer';
 
 const MAP_WIDTH = 500;
@@ -428,22 +430,27 @@ export function mockPublishHRZZones(json: string): void {
   const zones = JSON.parse(json);
   const count = Array.isArray(zones) ? zones.length : 0;
   addLog(`Published to /hrz_zones: ${count} zone(s)`);
-  zones.forEach((z: { id: string; vertices: { x: number; z: number }[] }, i: number) => {
-    addLog(`  Zone ${i + 1} (${z.id}): ${z.vertices.length} vertices`);
+  zones.forEach((z: { id: string; zoneType?: string; name?: string; vertices: { x: number; z: number }[] }, i: number) => {
+    const typeLabel = z.zoneType || 'forbidden';
+    addLog(`  Zone ${i + 1} (${z.id}, ${typeLabel}): ${z.vertices.length} vertices`);
   });
 
   if (currentGrid && count > 0) {
-    addLog('Inflating restricted zones into costmap');
-    zones.forEach((z: { id: string; vertices: { x: number; z: number }[] }) => {
-      fillZoneInGrid(z.vertices);
+    addLog('Applying restricted zones to costmap');
+    zones.forEach((z: { id: string; zoneType?: string; vertices: { x: number; z: number }[] }) => {
+      const zt = (z.zoneType || 'forbidden') as ZoneType;
+      fillZoneInGrid(z.vertices, zt);
     });
     useMapStore.getState().setGrid({ ...currentGrid, data: [...currentGrid.data] });
     addLog('Costmap updated with restricted zones');
   }
 }
 
-function fillZoneInGrid(vertices: { x: number; z: number }[]) {
+function fillZoneInGrid(vertices: { x: number; z: number }[], zoneType: ZoneType = 'forbidden') {
   if (!currentGrid || vertices.length < 3) return;
+
+  const costValue = ZONE_COST_VALUE[zoneType];
+  if (costValue === 0) return;
 
   let minCol = MAP_WIDTH, maxCol = 0, minRow = MAP_HEIGHT, maxRow = 0;
   const gVerts = vertices.map((v) => {
@@ -459,13 +466,21 @@ function fillZoneInGrid(vertices: { x: number; z: number }[]) {
     for (let col = minCol; col <= maxCol; col++) {
       if (col < 0 || col >= MAP_WIDTH || row < 0 || row >= MAP_HEIGHT) continue;
       if (pointInPolygon(col, row, gVerts)) {
-        for (let dr = -1; dr <= 1; dr++) {
-          for (let dc = -1; dc <= 1; dc++) {
-            const r = row + dr;
-            const c = col + dc;
-            if (r >= 0 && r < MAP_HEIGHT && c >= 0 && c < MAP_WIDTH) {
-              currentGrid.data[r * currentGrid.width + c] = OCCUPIED;
+        if (costValue === OCCUPIED) {
+          for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+              const r = row + dr;
+              const c = col + dc;
+              if (r >= 0 && r < MAP_HEIGHT && c >= 0 && c < MAP_WIDTH) {
+                currentGrid.data[r * currentGrid.width + c] = OCCUPIED;
+              }
             }
+          }
+        } else {
+          const idx = row * currentGrid.width + col;
+          const current = currentGrid.data[idx];
+          if (current < costValue) {
+            currentGrid.data[idx] = costValue;
           }
         }
       }

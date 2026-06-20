@@ -13,7 +13,6 @@ import { BreadcrumbTrail } from './BreadcrumbTrail';
 import { InflationOverlay } from './InflationOverlay';
 import { MapLabels3D } from './MapLabels3D';
 import { PathParticles } from './PathParticles';
-import { WaypointArrivalEffect } from './WaypointArrivalEffect';
 import { ZoneBreathingGlow } from './ZoneBreathingGlow';
 import { useLabelStore } from '../../stores/labelStore';
 import { useA11yStore } from '../../stores/a11yStore';
@@ -397,7 +396,6 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       <InflationOverlay />
       <MapLabels3D />
       {(mode === 'hrp') && <PathParticles />}
-      <WaypointArrivalEffect />
       <ZoneBreathingGlow />
       <gridHelper args={[50, 50, '#555', '#333']} position={[5, 0, 5]} />
     </Canvas>

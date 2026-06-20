@@ -116,6 +116,10 @@ const translations: Record<Locale, Record<string, string>> = {
     'Max Speed:': '最大速度:',
     'Min Speed:': '最小速度:',
     'Blocked:': '阻塞:',
+    'Zone name': '区域名称',
+    'Area:': '面积:',
+    'm²': 'm²',
+    'Zone Legend': '区域图例',
   },
   ja: {
     'MRReP / MRHaD': 'MRReP / MRHaD',
@@ -231,6 +235,10 @@ const translations: Record<Locale, Record<string, string>> = {
     'Max Speed:': '最高速度:',
     'Min Speed:': '最低速度:',
     'Blocked:': 'ブロック:',
+    'Zone name': 'ゾーン名',
+    'Area:': '面積:',
+    'm²': 'm²',
+    'Zone Legend': 'ゾーン凡例',
   },
 };
 

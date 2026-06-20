@@ -103,6 +103,12 @@ const translations: Record<Locale, Record<string, string>> = {
     'Label text:': '标签文本:',
     'Zones': '区域',
     'Path': '路径',
+    'Car': '车型',
+    'Humanoid': '人型',
+    'Drone': '无人机',
+    'Dog': '犬型',
+    'Type:': '类型:',
+    'Active type:': '当前类型:',
   },
   ja: {
     'MRReP / MRHaD': 'MRReP / MRHaD',
@@ -205,6 +211,12 @@ const translations: Record<Locale, Record<string, string>> = {
     'Label text:': 'ラベルテキスト:',
     'Zones': 'ゾーン',
     'Path': 'パス',
+    'Car': 'カータイプ',
+    'Humanoid': 'ヒューマノイド',
+    'Drone': 'ドローン',
+    'Dog': 'ドッグタイプ',
+    'Type:': 'タイプ:',
+    'Active type:': 'アクティブタイプ:',
   },
 };
 

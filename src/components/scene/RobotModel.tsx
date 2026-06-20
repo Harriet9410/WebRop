@@ -1,6 +1,10 @@
 import { useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
+import { RobotType } from '../../stores/fleetStore';
+import { HumanoidModel } from './HumanoidModel';
+import { DroneModel } from './DroneModel';
+import { DogModel } from './DogModel';
 
 interface RobotModelProps {
   x: number;
@@ -8,6 +12,7 @@ interface RobotModelProps {
   yaw: number;
   color?: string;
   isActive?: boolean;
+  robotType?: RobotType;
 }
 
 const BODY_COLOR = '#3a3a4a';
@@ -21,7 +26,14 @@ const STRIP_COLOR = '#fdd835';
 const LIDAR_COLOR = '#2a2a3a';
 const SCREEN_COLOR = '#4fc3f7';
 
-export function RobotModel({ x, z, yaw, color, isActive }: RobotModelProps) {
+export function RobotModel({ x, z, yaw, color, isActive, robotType = 'car' }: RobotModelProps) {
+  if (robotType === 'humanoid') return <HumanoidModel x={x} z={z} yaw={yaw} color={color} isActive={isActive} />;
+  if (robotType === 'drone') return <DroneModel x={x} z={z} yaw={yaw} color={color} isActive={isActive} />;
+  if (robotType === 'dog') return <DogModel x={x} z={z} yaw={yaw} color={color} isActive={isActive} />;
+  return <CarModel x={x} z={z} yaw={yaw} color={color} isActive={isActive} />;
+}
+
+function CarModel({ x, z, yaw, color, isActive }: Omit<RobotModelProps, 'robotType'>) {
   const groupRef = useRef<THREE.Group>(null);
   const lidarRef = useRef<THREE.Group>(null);
 

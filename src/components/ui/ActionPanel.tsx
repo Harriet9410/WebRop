@@ -6,13 +6,14 @@ import { useMapEditorStore, MapTool } from '../../stores/mapEditorStore';
 import { useUndoStore } from '../../stores/undoStore';
 import { useLabelStore } from '../../stores/labelStore';
 import { useA11yStore } from '../../stores/a11yStore';
-import { useFleetStore, FormationType } from '../../stores/fleetStore';
+import { useFleetStore, FormationType, RobotType, ROBOT_TYPES, ROBOT_TYPE_LABELS } from '../../stores/fleetStore';
 import { usePoseSyncStore, startPoseSync, stopPoseSync } from '../../stores/poseSyncStore';
 import { t } from '../../i18n';
 import { publishHRZZones, publishHRPPath, publishHRPSpeeds, publishNavGoal } from '../../ros/connection';
 import { mockPublishHRZZones, mockPublishHRPPath, mockStartWaypointNav, mockCancelNav, mockResetMap, mockClearMap } from '../../ros/mock';
 import { sceneToRos, dist } from '../../utils/coordinate';
 import { checkPathReachability } from '../../utils/pathCheck';
+import { useState } from 'react';
 import type { AppMode } from '../ui/ModeSelector';
 
 interface ActionPanelProps {
@@ -20,6 +21,7 @@ interface ActionPanelProps {
 }
 
 export function ActionPanel({ mode }: ActionPanelProps) {
+  const [newRobotType, setNewRobotType] = useState<RobotType>('car');
   const hrzZones = useHRZStore((s) => s.zones);
   const hrzCurrentVertices = useHRZStore((s) => s.currentVertices);
   const hrpPath = useHRPStore((s) => s.path);
@@ -148,15 +150,43 @@ export function ActionPanel({ mode }: ActionPanelProps) {
             aria-label="Select robot"
           >
             {fleetRobots.map((r) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
+              <option key={r.id} value={r.id}>{r.name} ({t(ROBOT_TYPE_LABELS[r.robotType], locale)})</option>
             ))}
           </select>
-          <button onClick={() => useFleetStore.getState().addRobot()} className="text-[10px] bg-green-700/60 hover:bg-green-600/60 text-green-200 px-1.5 py-1 rounded" aria-label="Add robot">+</button>
+          <button onClick={() => useFleetStore.getState().addRobot(undefined, newRobotType)} className="text-[10px] bg-green-700/60 hover:bg-green-600/60 text-green-200 px-1.5 py-1 rounded" aria-label="Add robot">+</button>
           {fleetRobots.length > 1 && (
             <button onClick={() => useFleetStore.getState().removeRobot(activeRobotId)} className="text-[10px] bg-red-700/60 hover:bg-red-600/60 text-red-200 px-1.5 py-1 rounded" aria-label="Remove robot">−</button>
           )}
         </div>
         <div className="text-xs text-gray-400">Robots: {fleetRobots.length}</div>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-gray-500">{t('Type:', locale)}</span>
+          <select
+            value={newRobotType}
+            onChange={(e) => setNewRobotType(e.target.value as RobotType)}
+            className="flex-1 text-[10px] bg-gray-700 text-white px-1 py-0.5 rounded cursor-pointer"
+          >
+            {ROBOT_TYPES.map((rt) => (
+              <option key={rt} value={rt}>{t(ROBOT_TYPE_LABELS[rt], locale)}</option>
+            ))}
+          </select>
+        </div>
+        {fleetRobots.find((r) => r.id === activeRobotId) && (
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-gray-500">{t('Active type:', locale)}</span>
+            <div className="flex gap-0.5">
+              {ROBOT_TYPES.map((rt) => (
+                <button
+                  key={rt}
+                  onMouseDown={(e) => { e.stopPropagation(); useFleetStore.getState().setRobotType(activeRobotId, rt); }}
+                  className={`text-[10px] px-1 py-0.5 rounded cursor-pointer ${fleetRobots.find((r) => r.id === activeRobotId)?.robotType === rt ? 'bg-blue-600 text-white font-bold' : 'bg-gray-700 text-gray-400 hover:text-white'}`}
+                >
+                  {t(ROBOT_TYPE_LABELS[rt], locale)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       {fleetRobots.length > 1 && (
         <div className="space-y-1">

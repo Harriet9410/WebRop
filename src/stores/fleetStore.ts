@@ -1,10 +1,22 @@
 import { create } from 'zustand';
 import { Vec2 } from '../utils/coordinate';
 
+export type RobotType = 'car' | 'humanoid' | 'drone' | 'dog';
+
+export const ROBOT_TYPE_LABELS: Record<RobotType, string> = {
+  car: 'Car',
+  humanoid: 'Humanoid',
+  drone: 'Drone',
+  dog: 'Dog',
+};
+
+export const ROBOT_TYPES: RobotType[] = ['car', 'humanoid', 'drone', 'dog'];
+
 export interface RobotInstance {
   id: string;
   name: string;
   color: string;
+  robotType: RobotType;
   pose: { x: number; z: number; yaw: number };
   linearVelocity: number;
   angularVelocity: number;
@@ -23,8 +35,9 @@ interface FleetState {
   activeRobotId: string;
   formation: FormationType;
   formationSpacing: number;
-  addRobot: (name?: string) => string;
+  addRobot: (name?: string, robotType?: RobotType) => string;
   removeRobot: (id: string) => void;
+  setRobotType: (id: string, robotType: RobotType) => void;
   setActiveRobot: (id: string) => void;
   setRobotPose: (id: string, pose: { x: number; z: number; yaw: number }) => void;
   setRobotVelocity: (id: string, linear: number, angular: number) => void;
@@ -49,6 +62,7 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     id: 'robot-0',
     name: 'Robot 1',
     color: ROBOT_COLORS[0],
+    robotType: 'car' as RobotType,
     pose: { x: 2, z: 2, yaw: 0 },
     linearVelocity: 0,
     angularVelocity: 0,
@@ -61,7 +75,7 @@ export const useFleetStore = create<FleetState>((set, get) => ({
   formation: 'line',
   formationSpacing: 0.8,
 
-  addRobot: (name) => {
+  addRobot: (name, robotType) => {
     const id = `robot-${++robotCounter}`;
     const robots = get().robots;
     const colorIdx = robots.length % ROBOT_COLORS.length;
@@ -69,6 +83,7 @@ export const useFleetStore = create<FleetState>((set, get) => ({
       id,
       name: name || `Robot ${robots.length + 1}`,
       color: ROBOT_COLORS[colorIdx],
+      robotType: robotType || 'car',
       pose: { x: 2 + robots.length * 0.5, z: 2, yaw: 0 },
       linearVelocity: 0,
       angularVelocity: 0,
@@ -89,6 +104,11 @@ export const useFleetStore = create<FleetState>((set, get) => ({
       activeRobotId: get().activeRobotId === id ? robots[0].id : get().activeRobotId,
     });
   },
+
+  setRobotType: (id, robotType) =>
+    set((s) => ({
+      robots: s.robots.map((r) => (r.id === id ? { ...r, robotType } : r)),
+    })),
 
   setActiveRobot: (id) => set({ activeRobotId: id }),
 

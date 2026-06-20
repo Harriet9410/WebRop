@@ -315,7 +315,7 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       <directionalLight position={[10, 20, 10]} intensity={0.8} />
       <MapFloor />
       {robots.map((r) => (
-        <RobotModel key={r.id} x={r.pose.x} z={r.pose.z} yaw={r.pose.yaw} color={r.color} isActive={r.id === activeRobotId} />
+        <RobotModel key={r.id} x={r.pose.x} z={r.pose.z} yaw={r.pose.yaw} color={r.color} isActive={r.id === activeRobotId} robotType={r.robotType} />
       ))}
       <SceneEvents mode={mode} />
       {(mode === 'hrz') && <HRZEditor3D />}

@@ -24,6 +24,7 @@ import { useHRPStore } from '../../stores/hrpStore';
 import { useRosStore } from '../../stores/rosStore';
 import type { Waypoint } from '../../stores/waypointStore';
 import { useMapEditorStore } from '../../stores/mapEditorStore';
+import { useMapStore } from '../../stores/mapStore';
 import { useDragStore } from '../../stores/dragStore';
 import { useUndoStore } from '../../stores/undoStore';
 import { useNavPlanStore } from '../../stores/navPlanStore';
@@ -199,11 +200,13 @@ function SceneEvents({ mode }: { mode: AppMode }) {
         if (tool === 'rect') {
           const col = Math.floor(pt.x / 0.02);
           const row = Math.floor(pt.z / 0.02);
+          useMapStore.getState().ensureMapEditInitial();
           editStore.setRectStart({ col, row });
         } else if (tool === 'robot') {
           mockPlaceRobot(pt.x, pt.z);
         } else {
           isDrawingMap.current = true;
+          useMapStore.getState().ensureMapEditInitial();
           const occupied = tool === 'wall';
           mockPaintBrush(pt.x, pt.z, editStore.brushSize, occupied);
         }
@@ -331,6 +334,9 @@ function SceneEvents({ mode }: { mode: AppMode }) {
             mockPaintRect(sx, sz, pt.x, pt.z, true);
             editStore.setRectStart(null);
           }
+        }
+        if (isDrawingMap.current || editStore.tool === 'rect') {
+          useMapStore.getState().pushMapEdit();
         }
         isDrawingMap.current = false;
       }

@@ -11,6 +11,7 @@ import { useMapStore } from '../../stores/mapStore';
 import { useAmclStore } from '../../stores/amclStore';
 import { t, Locale } from '../../i18n';
 import { setCameraPreset, CameraPreset } from '../scene/CameraControls';
+import type { AppMode } from '../ui/ModeSelector';
 
 function getShortcuts(locale: Locale) {
   return [
@@ -27,18 +28,23 @@ function getShortcuts(locale: Locale) {
 }
 
 interface StatusBarProps {
+  mode: AppMode;
   followRobot: boolean;
   onToggleFollow: () => void;
   onToggleTeleop: () => void;
 }
 
-export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: StatusBarProps) {
+export function StatusBar({ mode, followRobot, onToggleFollow, onToggleTeleop }: StatusBarProps) {
   const rosStatus = useRosStore((s) => s.status);
   const isMock = useRosStore((s) => s.isMock);
   const zoneCount = useHRZStore((s) => s.zones.length);
   const pathPts = useHRPStore((s) => s.path.length);
-  const canUndo = useUndoStore((s) => s.canUndo);
-  const canRedo = useUndoStore((s) => s.canRedo);
+  const undoCanUndo = useUndoStore((s) => s.canUndo);
+  const undoCanRedo = useUndoStore((s) => s.canRedo);
+  const mapCanUndo = useMapStore((s) => s.canMapUndo);
+  const mapCanRedo = useMapStore((s) => s.canMapRedo);
+  const canUndo = mode === 'mapedit' ? mapCanUndo : undoCanUndo;
+  const canRedo = mode === 'mapedit' ? mapCanRedo : undoCanRedo;
   const teleopEnabled = useTeleopStore((s) => s.teleopEnabled);
   const showInflation = useInflationStore((s) => s.showInflation);
   const locale = useA11yStore((s) => s.locale);

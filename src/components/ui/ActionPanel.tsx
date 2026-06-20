@@ -324,8 +324,8 @@ export function ActionPanel({ mode }: ActionPanelProps) {
               <span className="text-xs text-gray-300 w-4 text-right">{brushSize}</span>
             </div>
           )}
-          <button onClick={mockResetMap} className="w-full text-xs bg-yellow-700 hover:bg-yellow-800 text-white px-3 py-1.5 rounded">{t('Reset Default Map', locale)}</button>
-          <button onClick={mockClearMap} className="w-full text-xs bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded">{t('Clear All Walls', locale)}</button>
+          <button onClick={() => { useMapStore.getState().ensureMapEditInitial(); mockResetMap(); useMapStore.getState().pushMapEdit(); }} className="w-full text-xs bg-yellow-700 hover:bg-yellow-800 text-white px-3 py-1.5 rounded">{t('Reset Default Map', locale)}</button>
+          <button onClick={() => { useMapStore.getState().ensureMapEditInitial(); mockClearMap(); useMapStore.getState().pushMapEdit(); }} className="w-full text-xs bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded">{t('Clear All Walls', locale)}</button>
         </>
       )}
       {mode === 'relocate' && (

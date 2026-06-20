@@ -8,6 +8,7 @@ import { useHRZStore } from './stores/hrzStore';
 import { useHRPStore } from './stores/hrpStore';
 import { useRosStore } from './stores/rosStore';
 import { useUndoStore } from './stores/undoStore';
+import { useMapStore } from './stores/mapStore';
 import { useTeleopStore } from './stores/teleopStore';
 import { useLabelStore } from './stores/labelStore';
 import { useA11yStore } from './stores/a11yStore';
@@ -63,11 +64,19 @@ function App() {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
-        useUndoStore.getState().undo();
+        if (mode === 'mapedit') {
+          useMapStore.getState().mapUndo();
+        } else {
+          useUndoStore.getState().undo();
+        }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
         e.preventDefault();
-        useUndoStore.getState().redo();
+        if (mode === 'mapedit') {
+          useMapStore.getState().mapRedo();
+        } else {
+          useUndoStore.getState().redo();
+        }
       }
       if (e.key === 'Escape') {
         // reserved
@@ -83,7 +92,7 @@ function App() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, []);
+  }, [mode]);
 
   const teleopTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
@@ -106,7 +115,7 @@ function App() {
         <div className="flex-1">
           <Scene3D mode={mode} followRobot={followRobot} />
         </div>
-        <StatusBar followRobot={followRobot} onToggleFollow={() => setFollowRobot((f) => !f)} onToggleTeleop={toggleTeleop} />
+        <StatusBar mode={mode} followRobot={followRobot} onToggleFollow={() => setFollowRobot((f) => !f)} onToggleTeleop={toggleTeleop} />
       </div>
       <ToastOverlay />
     </div>

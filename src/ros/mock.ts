@@ -811,6 +811,7 @@ export function mockPaintBrush(worldX: number, worldZ: number, radius: number, o
     }
   }
   if (changed) {
+    useMapStore.getState().setSkipPreviousOnSet(true);
     useMapStore.getState().setGrid({ ...currentGrid, data: [...currentGrid.data] });
   }
 }
@@ -837,6 +838,7 @@ export function mockPaintRect(
       if (customData) customData[idx] = val;
     }
   }
+  useMapStore.getState().setSkipPreviousOnSet(true);
   useMapStore.getState().setGrid({ ...currentGrid, data: [...currentGrid.data] });
   addLog(`Painted rect (${minC},${minR})->(${maxC},${maxR}) ${occupied ? 'wall' : 'free'}`);
 }
@@ -885,4 +887,12 @@ export function mockClearMap(): void {
   currentGrid = { ...currentGrid, data: [...data] };
   useMapStore.getState().setGrid({ ...currentGrid, data: [...currentGrid.data] });
   addLog('Map cleared (only borders remain)');
+}
+
+export function mockRestoreGrid(gridData: number[]): void {
+  if (!currentGrid) return;
+  currentGrid = { ...currentGrid, data: [...gridData] };
+  customData = [...gridData];
+  useMapStore.getState().setSkipPreviousOnSet(true);
+  useMapStore.getState().setGrid({ ...currentGrid, data: [...currentGrid.data] });
 }

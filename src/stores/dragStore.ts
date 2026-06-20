@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 
 export interface DragInfo {
-  type: 'hrz' | 'hrp';
+  type: 'hrz' | 'hrp' | 'waypoint';
   zoneId?: string;
   vertexIndex: number;
+  robotId?: string;
 }
 
 interface DragState {

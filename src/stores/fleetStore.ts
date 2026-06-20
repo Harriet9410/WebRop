@@ -48,6 +48,7 @@ interface FleetState {
   resetRobotIdle: (id: string) => void;
   addWaypoint: (robotId: string, point: Vec2) => void;
   removeWaypoint: (robotId: string, wpId: string) => void;
+  moveWaypoint: (robotId: string, wpId: string, newPos: Vec2) => void;
   clearWaypoints: (robotId: string) => void;
   setNavigating: (robotId: string, navigating: boolean) => void;
   setCurrentWaypointIdx: (robotId: string, idx: number) => void;
@@ -162,6 +163,15 @@ export const useFleetStore = create<FleetState>((set, get) => ({
       robots: s.robots.map((r) =>
         r.id === robotId
           ? { ...r, waypoints: r.waypoints.filter((w) => w.id !== wpId) }
+          : r
+      ),
+    })),
+
+  moveWaypoint: (robotId, wpId, newPos) =>
+    set((s) => ({
+      robots: s.robots.map((r) =>
+        r.id === robotId
+          ? { ...r, waypoints: r.waypoints.map((w) => w.id === wpId ? { ...w, ...newPos } : w) }
           : r
       ),
     })),

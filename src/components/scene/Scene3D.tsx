@@ -128,12 +128,34 @@ function SceneEvents({ mode }: { mode: AppMode }) {
         store.startDrawing();
         store.addPoint(pt);
         lastPathPoint.current = pt;
-      } else if (mode === 'navigate') {
+      } else if (mode === 'navigate' || mode === 'tasks') {
         const rosStore = useRosStore.getState();
         const fleet = useFleetStore.getState();
         const activeId = fleet.activeRobotId;
         const activeBot = fleet.robots.find((r) => r.id === activeId);
         if (!activeBot) return;
+
+        let closestDist = VERTEX_HIT_RADIUS;
+        let closestRobotId: string | null = null;
+        let closestWpId: string | null = null;
+        for (const robot of fleet.robots) {
+          for (const wp of robot.waypoints) {
+            const d = dist(pt, wp);
+            if (d < closestDist) {
+              closestDist = d;
+              closestRobotId = robot.id;
+              closestWpId = wp.id;
+            }
+          }
+        }
+        if (closestRobotId && closestWpId) {
+          const wpIdx = fleet.robots.find((r) => r.id === closestRobotId)!.waypoints.findIndex((w) => w.id === closestWpId);
+          useUndoStore.getState().pushUndo();
+          dragState.current = { type: 'waypoint', robotId: closestRobotId, vertexIndex: wpIdx };
+          useDragStore.getState().setDragInfo({ type: 'waypoint', robotId: closestRobotId, vertexIndex: wpIdx });
+          return;
+        }
+
         if (rosStore.isMock) {
           if (activeBot.navigating) return;
           fleet.addWaypoint(activeId, pt);
@@ -178,6 +200,12 @@ function SceneEvents({ mode }: { mode: AppMode }) {
           useHRZStore.getState().moveVertex(ds.zoneId!, ds.vertexIndex, pt);
         } else if (ds.type === 'hrp') {
           useHRPStore.getState().movePoint(ds.vertexIndex, pt);
+        } else if (ds.type === 'waypoint' && ds.robotId) {
+          const fleet = useFleetStore.getState();
+          const bot = fleet.robots.find((r) => r.id === ds.robotId);
+          if (bot && bot.waypoints[ds.vertexIndex]) {
+            fleet.moveWaypoint(ds.robotId, bot.waypoints[ds.vertexIndex].id, pt);
+          }
         }
         return;
       }
@@ -368,16 +396,21 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       )}
       {(mode === 'navigate' || mode === 'tasks') && robots.map((r) => (
         <group key={r.id}>
-          {r.waypoints.map((wp, i) => (
-            <WaypointMarker
-              key={wp.id}
-              waypoint={wp}
-              index={i}
-              isCurrent={r.navigating && i === r.currentWaypointIdx}
-              isReached={r.navigating && i < r.currentWaypointIdx}
-              color={r.color}
-            />
-          ))}
+          {r.waypoints.map((wp, i) => {
+            const di = useDragStore.getState().dragInfo;
+            const isDragged = di?.type === 'waypoint' && di?.robotId === r.id && di?.vertexIndex === i;
+            return (
+              <WaypointMarker
+                key={wp.id}
+                waypoint={wp}
+                index={i}
+                isCurrent={r.navigating && i === r.currentWaypointIdx}
+                isReached={r.navigating && i < r.currentWaypointIdx}
+                isDragged={isDragged}
+                color={r.color}
+              />
+            );
+          })}
           {r.waypoints.length >= 2 && (
             <WaypointLines waypoints={r.waypoints} navigating={r.navigating} currentIdx={r.currentWaypointIdx} color={r.color} />
           )}
@@ -422,23 +455,25 @@ function makeNumberTexture(num: number, bgColor: string): THREE.CanvasTexture {
   return tex;
 }
 
-function WaypointMarker({ waypoint, index, isCurrent, isReached, color = '#42a5f5' }: {
+function WaypointMarker({ waypoint, index, isCurrent, isReached, isDragged, color = '#42a5f5' }: {
   waypoint: Waypoint;
   index: number;
   isCurrent: boolean;
   isReached: boolean;
+  isDragged?: boolean;
   color?: string;
 }) {
-  const bgColor = isReached ? '#666666' : isCurrent ? '#ff4081' : color;
+  const bgColor = isDragged ? '#ffffff' : isReached ? '#666666' : isCurrent ? '#ff4081' : color;
   const texture = useMemo(() => makeNumberTexture(index, bgColor), [index, bgColor]);
+  const y = isDragged ? 0.15 : 0.02;
 
   return (
-    <group position={[waypoint.x, 0.02, waypoint.z]}>
-      <sprite position={[0, 0.5, 0]} scale={[0.5, 0.5, 1]}>
+    <group position={[waypoint.x, y, waypoint.z]}>
+      <sprite position={[0, 0.5, 0]} scale={[isDragged ? 0.6 : 0.5, isDragged ? 0.6 : 0.5, 1]}>
         <spriteMaterial map={texture} transparent opacity={isReached ? 0.4 : 0.9} />
       </sprite>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <ringGeometry args={[0.1, 0.16, 24]} />
+        <ringGeometry args={[isDragged ? 0.14 : 0.1, isDragged ? 0.2 : 0.16, 24]} />
         <meshBasicMaterial color={bgColor} side={2} transparent opacity={isReached ? 0.3 : 0.7} />
       </mesh>
     </group>

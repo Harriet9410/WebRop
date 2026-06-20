@@ -3,8 +3,9 @@ import { useRosStore } from '../stores/rosStore';
 import { useMapStore } from '../stores/mapStore';
 import { useFleetStore } from '../stores/fleetStore';
 import { useNavPlanStore } from '../stores/navPlanStore';
+import { useAmclStore } from '../stores/amclStore';
 import { OccupancyGridData } from '../utils/mapRenderer';
-import { quaternionToYaw } from '../utils/coordinate';
+import { quaternionToYaw, yawToQuaternion } from '../utils/coordinate';
 import type { SegmentSpeed } from '../stores/hrpStore';
 import type { RosMsg_OccupancyGrid, RosMsg_Odometry, RosMsg_Path } from './types';
 
@@ -12,6 +13,7 @@ let ros: Ros | null = null;
 let mapSub: Topic | null = null;
 let odomSub: Topic | null = null;
 let navPlanSub: Topic | null = null;
+let particleSub: Topic | null = null;
 let cmdVelTopic: Topic | null = null;
 let mapOriginX = 0;
 let mapOriginY = 0;
@@ -137,6 +139,28 @@ function subscribeAll(): void {
     name: '/cmd_vel',
     messageType: 'geometry_msgs/Twist',
   });
+
+  particleSub = new Topic({
+    ros,
+    name: '/particlecloud',
+    messageType: 'geometry_msgs/PoseArray',
+    throttle_rate: 500,
+  });
+
+  particleSub.subscribe((msg: unknown) => {
+    const m = msg as { poses: { position: { x: number; y: number; number: number }; orientation: { x: number; y: number; z: number; w: number } }[] };
+    const particles = m.poses.map((p) => {
+      const scenePos = rosToScene(p.position.x, p.position.y);
+      const rosYaw = quaternionToYaw(p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w);
+      return {
+        x: scenePos.x,
+        z: scenePos.z,
+        yaw: Math.PI / 2 - rosYaw,
+        weight: 1 / m.poses.length,
+      };
+    });
+    useAmclStore.getState().setParticles(particles);
+  });
 }
 
 export function getRos(): Ros | null {
@@ -234,6 +258,41 @@ export function publishCmdVel(linearX: number, angularZ: number): void {
     linear: { x: linearX, y: 0, z: 0 },
     angular: { x: 0, y: 0, z: angularZ },
   } as never);
+}
+
+export function publishInitialPose(x: number, z: number, yaw: number): void {
+  if (!ros) return;
+  const rosPos = sceneToRos(x, z);
+  const rosYaw = Math.PI / 2 - yaw;
+  const q = yawToQuaternion(rosYaw);
+  const topic = new Topic({
+    ros,
+    name: '/initialpose',
+    messageType: 'geometry_msgs/PoseWithCovarianceStamped',
+  });
+  const msg = {
+    header: {
+      frame_id: 'map',
+      stamp: { secs: Math.floor(Date.now() / 1000), nsecs: 0 },
+    },
+    pose: {
+      pose: {
+        position: { x: rosPos.x, y: rosPos.y, z: 0 },
+        orientation: { x: q.x, y: q.y, z: q.z, w: q.w },
+      },
+      covariance: [
+        0.25, 0, 0, 0, 0, 0,
+        0, 0.25, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0.06853892326654787,
+      ],
+    },
+  };
+  topic.publish(msg as never);
+  useAmclStore.getState().setPendingPose(null);
+  useAmclStore.getState().setIsRelocating(false);
 }
 
 export { Ros, Topic };

@@ -31,6 +31,15 @@ export function quaternionToYaw(
   return Math.atan2(siny_cosp, cosy_cosp);
 }
 
+export function yawToQuaternion(yaw: number): { x: number; y: number; z: number; w: number } {
+  return {
+    x: 0,
+    y: 0,
+    z: Math.sin(yaw / 2),
+    w: Math.cos(yaw / 2),
+  };
+}
+
 export function dist(a: Vec2, b: Vec2): number {
   const dx = a.x - b.x;
   const dz = a.z - b.z;

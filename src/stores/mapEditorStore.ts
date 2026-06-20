@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type MapTool = 'wall' | 'erase' | 'rect' | 'robot';
+export type MapTool = 'wall' | 'erase' | 'rect' | 'robot' | 'relocate';
 
 interface MapEditorState {
   tool: MapTool;

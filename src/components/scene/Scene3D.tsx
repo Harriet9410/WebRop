@@ -28,12 +28,14 @@ import { useDragStore } from '../../stores/dragStore';
 import { useUndoStore } from '../../stores/undoStore';
 import { useNavPlanStore } from '../../stores/navPlanStore';
 import { mockPaintBrush, mockPaintRect, mockPlaceRobot } from '../../ros/mock';
-import { publishNavGoal } from '../../ros/connection';
+import { publishNavGoal, publishInitialPose } from '../../ros/connection';
+import { setMockRobotPose } from '../../ros/mock';
 import { Vec2, dist } from '../../utils/coordinate';
 import { initTouchHandlers, useTouchStore } from '../../stores/touchStore';
 import { WaypointConfig } from '../../stores/fleetStore';
 import { useWpSelectStore } from '../../stores/wpSelectStore';
 import { useTaskStore } from '../../stores/taskStore';
+import { useAmclStore } from '../../stores/amclStore';
 
 const VERTEX_HIT_RADIUS = 0.15;
 const GRID_SIZE = 0.5;
@@ -54,6 +56,7 @@ function SceneEvents({ mode }: { mode: AppMode }) {
   const isDrawingMap = useRef(false);
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
   const pendingWpDrag = useRef<{ robotId: string; wpIdx: number; wpId: string } | null>(null);
+  const relocateStart = useRef<Vec2 | null>(null);
   const dragState = useRef<{
     type: 'hrz' | 'hrp';
     zoneId?: string;
@@ -204,6 +207,10 @@ function SceneEvents({ mode }: { mode: AppMode }) {
           const occupied = tool === 'wall';
           mockPaintBrush(pt.x, pt.z, editStore.brushSize, occupied);
         }
+      } else if (mode === 'relocate') {
+        relocateStart.current = pt;
+        useAmclStore.getState().setPendingPose({ x: pt.x, z: pt.z, yaw: 0 });
+        useAmclStore.getState().setIsRelocating(true);
       }
     };
 
@@ -261,6 +268,13 @@ function SceneEvents({ mode }: { mode: AppMode }) {
         const occupied = editStore.tool === 'wall';
         mockPaintBrush(pt.x, pt.z, editStore.brushSize, occupied);
       }
+
+      if (mode === 'relocate' && relocateStart.current) {
+        const dx = pt.x - relocateStart.current.x;
+        const dz = pt.z - relocateStart.current.z;
+        const yaw = Math.atan2(-dx, -dz);
+        useAmclStore.getState().setPendingPose({ x: relocateStart.current.x, z: relocateStart.current.z, yaw });
+      }
     };
 
     const onPointerUp = (e: PointerEvent) => {
@@ -290,6 +304,20 @@ function SceneEvents({ mode }: { mode: AppMode }) {
       if (mode === 'hrp') {
         const store = useHRPStore.getState();
         if (store.isDrawing) store.finishDrawing();
+      }
+
+      if (mode === 'relocate' && relocateStart.current) {
+        const pending = useAmclStore.getState().pendingPose;
+        if (pending) {
+          if (useRosStore.getState().isMock) {
+            setMockRobotPose(pending.x, pending.z, pending.yaw);
+          } else {
+            publishInitialPose(pending.x, pending.z, pending.yaw);
+          }
+          useAmclStore.getState().setPendingPose(null);
+          useAmclStore.getState().setIsRelocating(false);
+        }
+        relocateStart.current = null;
       }
 
       if (mode === 'mapedit') {
@@ -474,6 +502,7 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
         </group>
       ))}
       {mode === 'tasks' && <TaskChainMarkers />}
+      <RelocatePosePreview />
       {moveBasePlan.length >= 2 && !isMock && (
         <NavPathVisual path={moveBasePlan} color="#ffffff" opacity={0.5} />
       )}
@@ -666,6 +695,55 @@ function TaskChainMarkers() {
       })()}
     </group>
   );
+}
+
+function RelocatePosePreview() {
+  const pendingPose = useAmclStore((s) => s.pendingPose);
+  if (!pendingPose) return null;
+  const { x, z, yaw } = pendingPose;
+  return (
+    <group position={[x, 0.02, z]} rotation={[0, yaw, 0]}>
+      <mesh position={[0, 0.3, 0]}>
+        <coneGeometry args={[0.15, 0.5, 8]} />
+        <meshBasicMaterial color="#ff1744" transparent opacity={0.8} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <ringGeometry args={[0.1, 0.18, 24]} />
+        <meshBasicMaterial color="#ff1744" side={2} transparent opacity={0.6} />
+      </mesh>
+      <mesh position={[0, 0, -0.4]}>
+        <boxGeometry args={[0.05, 0.05, 0.5]} />
+        <meshBasicMaterial color="#ff1744" transparent opacity={0.6} />
+      </mesh>
+      <sprite position={[0, 0.8, 0]} scale={[0.8, 0.4, 1]}>
+        <spriteMaterial
+          map={makeRelocateLabelTexture()}
+          transparent
+          opacity={0.9}
+          depthWrite={false}
+        />
+      </sprite>
+    </group>
+  );
+}
+
+function makeRelocateLabelTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#d50000cc';
+  ctx.beginPath();
+  ctx.roundRect(4, 4, 120, 56, 8);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 22px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('2D Pose', 64, 32);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
 }
 
 function makeStepLabelTexture(num: number): THREE.CanvasTexture {

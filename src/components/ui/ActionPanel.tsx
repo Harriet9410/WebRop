@@ -327,6 +327,17 @@ export function ActionPanel({ mode }: ActionPanelProps) {
           <button onClick={mockClearMap} className="w-full text-xs bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded">{t('Clear All Walls', locale)}</button>
         </>
       )}
+      {mode === 'relocate' && (
+        <>
+          <div className="text-xs text-gray-300 font-medium">{t('2D Pose Estimate', locale)}</div>
+          <div className="text-xs text-gray-400">{t('Click & drag to set pose', locale)}</div>
+          <div className="text-xs text-gray-500">
+            <span className="text-gray-400">{t('Click:', locale)}</span> {t('Set position', locale)}
+            <br />
+            <span className="text-gray-400">{t('Drag:', locale)}</span> {t('Set orientation', locale)}
+          </div>
+        </>
+      )}
       {mode === 'hrz' && (
         <>
           <div className="text-xs text-gray-400">

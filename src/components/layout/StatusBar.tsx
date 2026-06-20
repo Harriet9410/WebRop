@@ -7,6 +7,8 @@ import { useTeleopStore } from '../../stores/teleopStore';
 import { useInflationStore } from '../../stores/inflationStore';
 import { useA11yStore } from '../../stores/a11yStore';
 import { useFleetStore } from '../../stores/fleetStore';
+import { useMapStore } from '../../stores/mapStore';
+import { useAmclStore } from '../../stores/amclStore';
 import { t, Locale } from '../../i18n';
 import { setCameraPreset, CameraPreset } from '../scene/CameraControls';
 
@@ -91,6 +93,8 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
           </span>
         </span>
       )}
+      <MapOverlaySlider />
+      <AmclIndicator />
       <span>
         <span className="text-gray-500">{t('V:', locale)}</span>{' '}
         <span className="text-cyan-400 font-mono">{Math.abs(linearV).toFixed(2)}m/s</span>
@@ -185,5 +189,50 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
         </div>
       )}
     </div>
+  );
+}
+
+function MapOverlaySlider() {
+  const previousGrid = useMapStore((s) => s.previousGrid);
+  const overlayOpacity = useMapStore((s) => s.overlayOpacity);
+  const locale = useA11yStore((s) => s.locale);
+
+  if (!previousGrid) return null;
+
+  return (
+    <span className="flex items-center gap-1">
+      <span className="text-[10px] text-gray-500">{t('Old Map:', locale)}</span>
+      <input
+        type="range" min={0} max={1} step={0.05}
+        value={overlayOpacity}
+        onChange={(e) => useMapStore.getState().setOverlayOpacity(parseFloat(e.target.value))}
+        className="w-12 h-1 accent-purple-500"
+        aria-label={t('Old map overlay opacity', locale)}
+      />
+      <span className="text-[10px] text-purple-400 font-mono w-6">{(overlayOpacity * 100).toFixed(0)}%</span>
+    </span>
+  );
+}
+
+function AmclIndicator() {
+  const quality = useAmclStore((s) => s.quality);
+  const particleCount = useAmclStore((s) => s.particleCount);
+  const locale = useA11yStore((s) => s.locale);
+  const isMock = useRosStore((s) => s.isMock);
+
+  if (isMock) return null;
+
+  const qColor = quality === 'good' ? 'text-green-400' : quality === 'fair' ? 'text-yellow-400' : 'text-red-400';
+  const qLabel = quality === 'good' ? t('Good', locale) : quality === 'fair' ? t('Fair', locale) : t('Poor', locale);
+
+  return (
+    <span className="flex items-center gap-1">
+      <span className="text-[10px] text-gray-500">📡</span>
+      <span className={`text-[10px] font-mono ${qColor}`}>{qLabel}</span>
+      {particleCount > 0 && <span className="text-[10px] text-gray-600">({particleCount})</span>}
+      {quality === 'poor' && (
+        <span className="text-[10px] text-red-400 animate-pulse">⚠ {t('Low localization!', locale)}</span>
+      )}
+    </span>
   );
 }

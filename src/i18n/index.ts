@@ -156,6 +156,10 @@ const translations: Record<Locale, Record<string, string>> = {
     'Wait:': '等待:',
     'Yaw:': '朝向:',
     'Set Yaw': '设朝向',
+    'Left-click waypoint to select & edit. Drag to move. Click map to add.': '左键点击航点选中编辑，拖拽移动，点击地图添加。',
+    'Waypoint': '航点',
+    'seconds': '秒',
+    'Delete Waypoint': '删除航点',
   },
   ja: {
     'MRReP / MRHaD': 'MRReP / MRHaD',
@@ -311,6 +315,10 @@ const translations: Record<Locale, Record<string, string>> = {
     'Wait:': '待機:',
     'Yaw:': '方位:',
     'Set Yaw': '方位設定',
+    'Left-click waypoint to select & edit. Drag to move. Click map to add.': '左クリックで選択＆編集、ドラッグで移動、マップクリックで追加。',
+    'Waypoint': 'ウェイポイント',
+    'seconds': '秒',
+    'Delete Waypoint': 'ウェイポイント削除',
   },
 };
 

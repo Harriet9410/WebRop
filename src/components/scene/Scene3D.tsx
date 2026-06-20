@@ -32,9 +32,11 @@ import { publishNavGoal } from '../../ros/connection';
 import { Vec2, dist } from '../../utils/coordinate';
 import { initTouchHandlers, useTouchStore } from '../../stores/touchStore';
 import { WaypointConfig } from '../../stores/fleetStore';
+import { useWpSelectStore } from '../../stores/wpSelectStore';
 
 const VERTEX_HIT_RADIUS = 0.15;
 const GRID_SIZE = 0.5;
+const DRAG_THRESHOLD_PX = 4;
 
 function snapToGrid(pt: Vec2): Vec2 {
   return {
@@ -49,6 +51,8 @@ function SceneEvents({ mode }: { mode: AppMode }) {
   const groundPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
   const lastPathPoint = useRef<Vec2 | null>(null);
   const isDrawingMap = useRef(false);
+  const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
+  const pendingWpDrag = useRef<{ robotId: string; wpIdx: number; wpId: string } | null>(null);
   const dragState = useRef<{
     type: 'hrz' | 'hrp';
     zoneId?: string;
@@ -76,6 +80,8 @@ function SceneEvents({ mode }: { mode: AppMode }) {
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
+      pointerDownPos.current = { x: e.clientX, y: e.clientY };
+      pendingWpDrag.current = null;
 
       const snapMode = mode === 'hrz' || mode === 'hrp';
       const pt = getScenePoint(e, snapMode);
@@ -139,24 +145,25 @@ function SceneEvents({ mode }: { mode: AppMode }) {
         let closestDist = VERTEX_HIT_RADIUS;
         let closestRobotId: string | null = null;
         let closestWpId: string | null = null;
+        let closestWpIdx = -1;
         for (const robot of fleet.robots) {
-          for (const wp of robot.waypoints) {
+          for (let wi = 0; wi < robot.waypoints.length; wi++) {
+            const wp = robot.waypoints[wi];
             const d = dist(pt, wp);
             if (d < closestDist) {
               closestDist = d;
               closestRobotId = robot.id;
               closestWpId = wp.id;
+              closestWpIdx = wi;
             }
           }
         }
-        if (closestRobotId && closestWpId) {
-          const wpIdx = fleet.robots.find((r) => r.id === closestRobotId)!.waypoints.findIndex((w) => w.id === closestWpId);
-          useUndoStore.getState().pushUndo();
-          dragState.current = { type: 'waypoint', robotId: closestRobotId, vertexIndex: wpIdx };
-          useDragStore.getState().setDragInfo({ type: 'waypoint', robotId: closestRobotId, vertexIndex: wpIdx });
+        if (closestRobotId && closestWpId && closestWpIdx >= 0) {
+          pendingWpDrag.current = { robotId: closestRobotId, wpIdx: closestWpIdx, wpId: closestWpId };
           return;
         }
 
+        useWpSelectStore.getState().clearSelection();
         if (rosStore.isMock) {
           if (activeBot.navigating) return;
           fleet.addWaypoint(activeId, pt);
@@ -190,10 +197,23 @@ function SceneEvents({ mode }: { mode: AppMode }) {
       const pt = getScenePoint(e, mode === 'hrz' || mode === 'hrp');
       if (!pt) return;
 
+      if (pendingWpDrag.current && pointerDownPos.current) {
+        const dx = e.clientX - pointerDownPos.current.x;
+        const dy = e.clientY - pointerDownPos.current.y;
+        if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD_PX) {
+          const pwd = pendingWpDrag.current;
+          useUndoStore.getState().pushUndo();
+          dragState.current = { type: 'waypoint' as any, zoneId: pwd.robotId, vertexIndex: pwd.wpIdx };
+          useDragStore.getState().setDragInfo({ type: 'waypoint', robotId: pwd.robotId, vertexIndex: pwd.wpIdx });
+          pendingWpDrag.current = null;
+        }
+      }
+
       if (dragState.current) {
         if (e.buttons !== 1) {
           dragState.current = null;
           useDragStore.getState().setDragInfo(null);
+          pendingWpDrag.current = null;
           return;
         }
         const ds = dragState.current;
@@ -201,11 +221,11 @@ function SceneEvents({ mode }: { mode: AppMode }) {
           useHRZStore.getState().moveVertex(ds.zoneId!, ds.vertexIndex, pt);
         } else if (ds.type === 'hrp') {
           useHRPStore.getState().movePoint(ds.vertexIndex, pt);
-        } else if (ds.type === 'waypoint' && ds.robotId) {
+        } else if (ds.type === 'waypoint' && ds.zoneId) {
           const fleet = useFleetStore.getState();
-          const bot = fleet.robots.find((r) => r.id === ds.robotId);
+          const bot = fleet.robots.find((r) => r.id === ds.zoneId);
           if (bot && bot.waypoints[ds.vertexIndex]) {
-            fleet.moveWaypoint(ds.robotId, bot.waypoints[ds.vertexIndex].id, pt);
+            fleet.moveWaypoint(ds.zoneId, bot.waypoints[ds.vertexIndex].id, pt);
           }
         }
         return;
@@ -232,11 +252,26 @@ function SceneEvents({ mode }: { mode: AppMode }) {
     const onPointerUp = (e: PointerEvent) => {
       if (e.button !== 0) return;
 
+      if (pendingWpDrag.current && pointerDownPos.current) {
+        const dx = e.clientX - pointerDownPos.current.x;
+        const dy = e.clientY - pointerDownPos.current.y;
+        if (Math.sqrt(dx * dx + dy * dy) <= DRAG_THRESHOLD_PX) {
+          const pwd = pendingWpDrag.current;
+          useWpSelectStore.getState().selectWaypoint(pwd.robotId, pwd.wpId);
+        }
+        pendingWpDrag.current = null;
+        pointerDownPos.current = null;
+        return;
+      }
+
       if (dragState.current) {
         dragState.current = null;
         useDragStore.getState().setDragInfo(null);
+        pointerDownPos.current = null;
         return;
       }
+
+      pointerDownPos.current = null;
 
       if (mode === 'hrp') {
         const store = useHRPStore.getState();
@@ -399,7 +434,9 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
         <group key={r.id}>
           {r.waypoints.map((wp, i) => {
             const di = useDragStore.getState().dragInfo;
+            const sel = useWpSelectStore.getState();
             const isDragged = di?.type === 'waypoint' && di?.robotId === r.id && di?.vertexIndex === i;
+            const isSelected = sel.selectedRobotId === r.id && sel.selectedWpId === wp.id;
             return (
               <WaypointMarker
                 key={wp.id}
@@ -409,6 +446,7 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
                 isCurrent={r.navigating && i === r.currentWaypointIdx}
                 isReached={r.navigating && i < r.currentWaypointIdx}
                 isDragged={isDragged}
+                isSelected={isSelected}
                 color={r.color}
               />
             );
@@ -457,18 +495,19 @@ function makeNumberTexture(num: number, bgColor: string): THREE.CanvasTexture {
   return tex;
 }
 
-function WaypointMarker({ waypoint, wpConfig, index, isCurrent, isReached, isDragged, color = '#42a5f5' }: {
+function WaypointMarker({ waypoint, wpConfig, index, isCurrent, isReached, isDragged, isSelected, color = '#42a5f5' }: {
   waypoint: Waypoint;
   wpConfig?: WaypointConfig;
   index: number;
   isCurrent: boolean;
   isReached: boolean;
   isDragged?: boolean;
+  isSelected?: boolean;
   color?: string;
 }) {
   const cfg = wpConfig;
   const speedColor = cfg ? (cfg.speed >= 0.8 ? '#4caf50' : cfg.speed >= 0.3 ? '#fdd835' : '#ef5350') : color;
-  const bgColor = isDragged ? '#ffffff' : isReached ? '#666666' : isCurrent ? '#ff4081' : color;
+  const bgColor = isDragged ? '#ffffff' : isSelected ? '#00e5ff' : isReached ? '#666666' : isCurrent ? '#ff4081' : color;
   const texture = useMemo(() => makeNumberTexture(index, bgColor), [index, bgColor]);
   const y = isDragged ? 0.15 : 0.02;
 
@@ -481,6 +520,12 @@ function WaypointMarker({ waypoint, wpConfig, index, isCurrent, isReached, isDra
         <ringGeometry args={[isDragged ? 0.14 : 0.1, isDragged ? 0.2 : 0.16, 24]} />
         <meshBasicMaterial color={bgColor} side={2} transparent opacity={isReached ? 0.3 : 0.7} />
       </mesh>
+      {isSelected && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
+          <ringGeometry args={[0.22, 0.28, 24]} />
+          <meshBasicMaterial color="#00e5ff" side={2} transparent opacity={0.6} />
+        </mesh>
+      )}
       {cfg && cfg.speed !== 0.5 && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]}>
           <ringGeometry args={[0.18, 0.22, 24]} />

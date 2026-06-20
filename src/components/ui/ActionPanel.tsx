@@ -8,6 +8,7 @@ import { useLabelStore } from '../../stores/labelStore';
 import { useA11yStore } from '../../stores/a11yStore';
 import { useFleetStore, FormationType, RobotType, ROBOT_TYPES, ROBOT_TYPE_LABELS, WaypointConfig, DEFAULT_WP_SPEED, DEFAULT_WP_WAIT } from '../../stores/fleetStore';
 import { usePoseSyncStore, startPoseSync, stopPoseSync } from '../../stores/poseSyncStore';
+import { useWpSelectStore } from '../../stores/wpSelectStore';
 import { TaskPanel } from './TaskPanel';
 import { t } from '../../i18n';
 import { publishHRZZones, publishHRPPath, publishHRPSpeeds, publishNavGoal } from '../../ros/connection';
@@ -236,14 +237,14 @@ export function ActionPanel({ mode }: ActionPanelProps) {
         return (
         <>
           <div className="text-xs text-gray-400">
-            {t('Left-click on the map to add waypoints. Robot will navigate to each in order.', locale)}
+            {t('Left-click waypoint to select & edit. Drag to move. Click map to add.', locale)}
           </div>
           {activeBot.waypoints.length > 0 && (
             <div className="space-y-1">
               <div className="text-xs text-gray-300 font-medium">
                 {t('Waypoints', locale)} ({activeBot.waypoints.length})
               </div>
-              <div className="max-h-64 overflow-y-auto space-y-0.5" role="list" aria-label={t('Waypoints', locale)}>
+              <div className="max-h-48 overflow-y-auto space-y-0.5" role="list" aria-label={t('Waypoints', locale)}>
                 {activeBot.waypoints.map((wp, i) => (
                   <WaypointItem
                     key={wp.id}
@@ -260,6 +261,7 @@ export function ActionPanel({ mode }: ActionPanelProps) {
               </div>
             </div>
           )}
+          <SelectedWaypointEditor locale={locale} />
           {activeBot.navigating ? (
             <>
               <div className="text-xs text-pink-400">
@@ -507,8 +509,19 @@ function WaypointItem({ wp, index, robotId, robotColor, isNavigating, currentIdx
   const [expanded, setExpanded] = useState(false);
   const isActive = isNavigating && index === currentIdx;
   const isReached = isNavigating && index < currentIdx;
+  const selWpId = useWpSelectStore((s) => s.selectedWpId);
+  const isSelected = selWpId === wp.id;
 
   const speedColor = wp.speed >= 0.8 ? '#4caf50' : wp.speed >= 0.3 ? '#fdd835' : '#ef5350';
+
+  const handleClick = () => {
+    if (isSelected) {
+      useWpSelectStore.getState().clearSelection();
+    } else {
+      useWpSelectStore.getState().selectWaypoint(robotId, wp.id);
+      setExpanded(true);
+    }
+  };
 
   return (
     <div
@@ -549,77 +562,102 @@ function WaypointItem({ wp, index, robotId, robotColor, isNavigating, currentIdx
         });
       }}
       className={`text-xs rounded select-none ${
-        isActive ? 'bg-pink-600/40 ring-1 ring-pink-400'
+        isSelected ? 'bg-cyan-600/30 ring-1 ring-cyan-400'
+        : isActive ? 'bg-pink-600/40 ring-1 ring-pink-400'
         : isReached ? 'bg-gray-600/30 opacity-50'
         : 'bg-gray-700/50'
       } ${!isNavigating ? 'cursor-grab active:cursor-grabbing' : ''}`}
     >
       <div
         className="flex items-center gap-1 px-2 py-1 cursor-pointer"
-        onClick={() => setExpanded(!expanded)}
+        onClick={handleClick}
       >
-        <span className="w-5 h-5 rounded-full text-white flex items-center justify-center text-[10px] font-bold shrink-0" style={{ backgroundColor: robotColor }}>{index + 1}</span>
+        <span className="w-5 h-5 rounded-full text-white flex items-center justify-center text-[10px] font-bold shrink-0" style={{ backgroundColor: isSelected ? '#00e5ff' : robotColor }}>{index + 1}</span>
         <span className="text-gray-300 flex-1 truncate">({wp.x.toFixed(1)}, {wp.z.toFixed(1)})</span>
         <span className="text-[10px] font-mono px-1 rounded" style={{ backgroundColor: speedColor + '44', color: speedColor }}>{wp.speed}m/s</span>
         {wp.waitDuration > 0 && <span className="text-[10px] text-amber-400">⏳{wp.waitDuration}s</span>}
         {wp.targetYaw !== null && <span className="text-[10px] text-cyan-400">🧭{(wp.targetYaw * 180 / Math.PI).toFixed(0)}°</span>}
-        <span className="text-[10px] text-gray-500">{expanded ? '▼' : '▶'}</span>
         {!isNavigating && (
-          <button onClick={(e) => { e.stopPropagation(); useFleetStore.getState().removeWaypoint(robotId, wp.id); }} className="text-red-400 hover:text-red-300 px-0.5">✕</button>
+          <button onClick={(e) => { e.stopPropagation(); useFleetStore.getState().removeWaypoint(robotId, wp.id); if (isSelected) useWpSelectStore.getState().clearSelection(); }} className="text-red-400 hover:text-red-300 px-0.5">✕</button>
         )}
       </div>
-      {expanded && (
-        <div className="px-2 pb-1.5 pt-0.5 space-y-1 border-t border-gray-600/30" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-gray-500 w-10">{t('Speed:', locale)}</span>
+    </div>
+  );
+}
+
+function SelectedWaypointEditor({ locale }: { locale: string }) {
+  const selRobotId = useWpSelectStore((s) => s.selectedRobotId);
+  const selWpId = useWpSelectStore((s) => s.selectedWpId);
+  const robots = useFleetStore((s) => s.robots);
+
+  if (!selRobotId || !selWpId) return null;
+
+  const robot = robots.find((r) => r.id === selRobotId);
+  const wp = robot?.waypoints.find((w) => w.id === selWpId);
+  if (!robot || !wp) return null;
+
+  const wpIdx = robot.waypoints.findIndex((w) => w.id === selWpId);
+  const speedColor = wp.speed >= 0.8 ? '#4caf50' : wp.speed >= 0.3 ? '#fdd835' : '#ef5350';
+
+  return (
+    <div className="bg-cyan-900/20 border border-cyan-600/40 rounded p-2 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-cyan-300 font-bold">#{wpIdx + 1} {t('Waypoint', locale)}</span>
+        <button
+          onClick={() => useWpSelectStore.getState().clearSelection()}
+          className="text-[10px] text-gray-400 hover:text-white px-1"
+        >✕</button>
+      </div>
+      <div className="text-[10px] text-gray-400">({wp.x.toFixed(2)}, {wp.z.toFixed(2)})</div>
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] text-gray-500 w-10">{t('Speed:', locale)}</span>
+        <input
+          type="range" min={0.05} max={2.0} step={0.05}
+          value={wp.speed}
+          onChange={(e) => useFleetStore.getState().updateWaypoint(selRobotId, selWpId, { speed: parseFloat(e.target.value) })}
+          className="flex-1 h-1 accent-green-500"
+        />
+        <span className="text-[10px] font-mono w-12 text-right" style={{ color: speedColor }}>{wp.speed.toFixed(2)} m/s</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] text-gray-500 w-10">{t('Wait:', locale)}</span>
+        <input
+          type="number" min={0} max={300} step={1}
+          value={wp.waitDuration}
+          onChange={(e) => useFleetStore.getState().updateWaypoint(selRobotId, selWpId, { waitDuration: Math.max(0, parseInt(e.target.value) || 0) })}
+          className="w-16 text-[10px] bg-gray-600 text-white px-1.5 py-0.5 rounded text-right"
+        />
+        <span className="text-[10px] text-gray-500">{t('seconds', locale)}</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] text-gray-500 w-10">{t('Yaw:', locale)}</span>
+        {wp.targetYaw !== null ? (
+          <>
             <input
-              type="range" min={0.05} max={2.0} step={0.05}
-              value={wp.speed}
-              onChange={(e) => useFleetStore.getState().updateWaypoint(robotId, wp.id, { speed: parseFloat(e.target.value) })}
-              className="flex-1 h-1 accent-green-500"
-              disabled={isNavigating}
+              type="number" min={-180} max={180} step={5}
+              value={Math.round(wp.targetYaw * 180 / Math.PI)}
+              onChange={(e) => useFleetStore.getState().updateWaypoint(selRobotId, selWpId, { targetYaw: (parseInt(e.target.value) || 0) * Math.PI / 180 })}
+              className="w-16 text-[10px] bg-gray-600 text-cyan-300 px-1.5 py-0.5 rounded text-right"
             />
-            <span className="text-[10px] font-mono w-10 text-right" style={{ color: speedColor }}>{wp.speed.toFixed(2)}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-gray-500 w-10">{t('Wait:', locale)}</span>
-            <input
-              type="number" min={0} max={300} step={1}
-              value={wp.waitDuration}
-              onChange={(e) => useFleetStore.getState().updateWaypoint(robotId, wp.id, { waitDuration: Math.max(0, parseInt(e.target.value) || 0) })}
-              className="w-14 text-[10px] bg-gray-600 text-white px-1 py-0.5 rounded text-right"
-              disabled={isNavigating}
-            />
-            <span className="text-[10px] text-gray-500">s</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-gray-500 w-10">{t('Yaw:', locale)}</span>
-            {wp.targetYaw !== null ? (
-              <>
-                <input
-                  type="number" min={-180} max={180} step={5}
-                  value={Math.round(wp.targetYaw * 180 / Math.PI)}
-                  onChange={(e) => useFleetStore.getState().updateWaypoint(robotId, wp.id, { targetYaw: (parseInt(e.target.value) || 0) * Math.PI / 180 })}
-                  className="w-14 text-[10px] bg-gray-600 text-cyan-300 px-1 py-0.5 rounded text-right"
-                  disabled={isNavigating}
-                />
-                <span className="text-[10px] text-gray-500">°</span>
-                <button
-                  onClick={() => useFleetStore.getState().updateWaypoint(robotId, wp.id, { targetYaw: null })}
-                  className="text-[10px] text-red-400 hover:text-red-300 px-0.5"
-                  disabled={isNavigating}
-                >✕</button>
-              </>
-            ) : (
-              <button
-                onClick={() => useFleetStore.getState().updateWaypoint(robotId, wp.id, { targetYaw: 0 })}
-                className="text-[10px] bg-gray-600 text-gray-400 hover:text-cyan-300 px-1.5 py-0.5 rounded"
-                disabled={isNavigating}
-              >+ {t('Set Yaw', locale)}</button>
-            )}
-          </div>
-        </div>
-      )}
+            <span className="text-[10px] text-gray-500">°</span>
+            <button
+              onClick={() => useFleetStore.getState().updateWaypoint(selRobotId, selWpId, { targetYaw: null })}
+              className="text-[10px] text-red-400 hover:text-red-300 px-0.5"
+            >✕</button>
+          </>
+        ) : (
+          <button
+            onClick={() => useFleetStore.getState().updateWaypoint(selRobotId, selWpId, { targetYaw: 0 })}
+            className="text-[10px] bg-gray-600 text-gray-400 hover:text-cyan-300 px-1.5 py-0.5 rounded"
+          >+ {t('Set Yaw', locale)}</button>
+        )}
+      </div>
+      <button
+        onClick={() => { useFleetStore.getState().removeWaypoint(selRobotId, selWpId); useWpSelectStore.getState().clearSelection(); }}
+        className="w-full text-[10px] bg-red-700/60 hover:bg-red-600/60 text-red-200 px-1.5 py-1 rounded"
+      >
+        {t('Delete Waypoint', locale)}
+      </button>
     </div>
   );
 }

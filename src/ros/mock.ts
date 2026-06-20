@@ -3,6 +3,7 @@ import { useRosStore } from '../stores/rosStore';
 import { useFleetStore } from '../stores/fleetStore';
 import { useRobotPoseStore } from '../stores/robotPoseStore';
 import { useToastStore } from '../stores/toastStore';
+import { useAmclStore, AmclParticle } from '../stores/amclStore';
 import type { SegmentSpeed } from '../stores/hrpStore';
 import type { ZoneType } from '../stores/hrzStore';
 import { ZONE_COST_VALUE } from '../stores/hrzStore';
@@ -29,6 +30,9 @@ let currentGrid: OccupancyGridData | null = null;
 let customData: number[] | null = null;
 let wpWaitUntil: number | null = null;
 let wpTargetYaw: number | null = null;
+let amclDivergence: number = 0;
+let lastPoorQualityToast: number = 0;
+const MOCK_PARTICLE_COUNT = 50;
 
 function addLog(msg: string) {
   const ts = new Date().toLocaleTimeString();
@@ -296,6 +300,45 @@ function getCurrentSegmentSpeed(): SegmentSpeed {
   return 0.5;
 }
 
+function updateMockAmcl() {
+  const particles: AmclParticle[] = [];
+  const spread = 0.05 + amclDivergence * 1.5;
+  const yawSpread = 0.1 + amclDivergence * 2.0;
+
+  for (let i = 0; i < MOCK_PARTICLE_COUNT; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const r = Math.random() * spread;
+    const px = robotX + Math.cos(angle) * r;
+    const pz = robotZ + Math.sin(angle) * r;
+    const pYaw = robotYaw + (Math.random() - 0.5) * yawSpread * 2;
+
+    const distFromRobot = Math.sqrt((px - robotX) ** 2 + (pz - robotZ) ** 2);
+    const maxDist = 0.05 + amclDivergence * 1.5;
+    const w = distFromRobot < maxDist * 0.5
+      ? 1.0
+      : distFromRobot < maxDist
+        ? 0.5
+        : 0.1;
+
+    particles.push({ x: px, z: pz, yaw: pYaw, weight: w });
+  }
+
+  useAmclStore.getState().setParticles(particles);
+
+  amclDivergence += 0.0005;
+  if (amclDivergence > 1) amclDivergence = 1;
+
+  const quality = useAmclStore.getState().quality;
+  if (quality === 'poor' && Date.now() - lastPoorQualityToast > 30000) {
+    lastPoorQualityToast = Date.now();
+    useToastStore.getState().addToast('Low localization quality! Consider relocalizing.', 'warning');
+  }
+}
+
+export function mockSetAmclDivergence(level: number): void {
+  amclDivergence = Math.max(0, Math.min(1, level));
+}
+
 function updateOdom() {
   if (wpWaitUntil !== null) {
     if (Date.now() < wpWaitUntil) {
@@ -403,6 +446,8 @@ function updateOdom() {
       fleet.resetRobotIdle(fleet.activeRobotId);
     }
   }
+
+  updateMockAmcl();
 }
 
 export function startMock(mapType: 'default' | 'blank' = 'default'): void {
@@ -467,7 +512,9 @@ export function stopMock(): void {
   pathIdx = 0;
   wpWaitUntil = null;
   wpTargetYaw = null;
+  amclDivergence = 0;
   currentGrid = null;
+  useAmclStore.getState().clear();
   const fleet = useFleetStore.getState();
   fleet.clearNav(fleet.activeRobotId);
   fleet.clearWaypoints(fleet.activeRobotId);
@@ -810,6 +857,7 @@ export function setMockRobotPose(x: number, z: number, yaw: number): void {
   robotX = x;
   robotZ = z;
   robotYaw = yaw;
+  amclDivergence = 0;
   useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, { x, z, yaw });
   useRobotPoseStore.getState().setPose({ x, z, yaw });
 }

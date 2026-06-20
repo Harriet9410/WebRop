@@ -218,9 +218,6 @@ function AmclIndicator() {
   const quality = useAmclStore((s) => s.quality);
   const particleCount = useAmclStore((s) => s.particleCount);
   const locale = useA11yStore((s) => s.locale);
-  const isMock = useRosStore((s) => s.isMock);
-
-  if (isMock) return null;
 
   const qColor = quality === 'good' ? 'text-green-400' : quality === 'fair' ? 'text-yellow-400' : 'text-red-400';
   const qLabel = quality === 'good' ? t('Good', locale) : quality === 'fair' ? t('Fair', locale) : t('Poor', locale);

@@ -503,6 +503,7 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       ))}
       {mode === 'tasks' && <TaskChainMarkers />}
       <RelocatePosePreview />
+      <AmclParticleCloud />
       {moveBasePlan.length >= 2 && !isMock && (
         <NavPathVisual path={moveBasePlan} color="#ffffff" opacity={0.5} />
       )}
@@ -693,6 +694,32 @@ function TaskChainMarkers() {
           </line>
         );
       })()}
+    </group>
+  );
+}
+
+function AmclParticleCloud() {
+  const particles = useAmclStore((s) => s.particles);
+  const quality = useAmclStore((s) => s.quality);
+  if (particles.length === 0) return null;
+
+  const color = quality === 'good' ? '#4caf50' : quality === 'fair' ? '#fdd835' : '#ef5350';
+  const opacity = quality === 'good' ? 0.4 : quality === 'fair' ? 0.6 : 0.8;
+
+  return (
+    <group>
+      {particles.map((p, i) => (
+        <group key={i} position={[p.x, 0.03, p.z]} rotation={[0, p.yaw, 0]}>
+          <mesh>
+            <sphereGeometry args={[0.02, 4, 4]} />
+            <meshBasicMaterial color={color} transparent opacity={opacity * p.weight} />
+          </mesh>
+          <mesh position={[0, 0, -0.04]} rotation={[-Math.PI / 2, 0, 0]}>
+            <coneGeometry args={[0.015, 0.06, 3]} />
+            <meshBasicMaterial color={color} transparent opacity={opacity * p.weight * 0.8} />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }

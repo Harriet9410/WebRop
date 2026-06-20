@@ -9,10 +9,11 @@ import { useA11yStore } from '../../stores/a11yStore';
 import { useFleetStore, FormationType, RobotType, ROBOT_TYPES, ROBOT_TYPE_LABELS, WaypointConfig, DEFAULT_WP_SPEED, DEFAULT_WP_WAIT } from '../../stores/fleetStore';
 import { usePoseSyncStore, startPoseSync, stopPoseSync } from '../../stores/poseSyncStore';
 import { useWpSelectStore } from '../../stores/wpSelectStore';
+import { useAmclStore } from '../../stores/amclStore';
 import { TaskPanel } from './TaskPanel';
 import { t } from '../../i18n';
 import { publishHRZZones, publishHRPPath, publishHRPSpeeds, publishNavGoal } from '../../ros/connection';
-import { mockPublishHRZZones, mockPublishHRPPath, mockStartWaypointNav, mockCancelNav, mockResetMap, mockClearMap } from '../../ros/mock';
+import { mockPublishHRZZones, mockPublishHRPPath, mockStartWaypointNav, mockCancelNav, mockResetMap, mockClearMap, mockSetAmclDivergence } from '../../ros/mock';
 import { sceneToRos, dist } from '../../utils/coordinate';
 import { checkPathReachability } from '../../utils/pathCheck';
 import { useState } from 'react';
@@ -336,6 +337,22 @@ export function ActionPanel({ mode }: ActionPanelProps) {
             <br />
             <span className="text-gray-400">{t('Drag:', locale)}</span> {t('Set orientation', locale)}
           </div>
+          {isMock && (
+            <div className="space-y-1">
+              <div className="text-xs text-gray-300 font-medium">{t('Simulate Drift', locale)}</div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range" min={0} max={1} step={0.01}
+                  defaultValue={0}
+                  onChange={(e) => mockSetAmclDivergence(parseFloat(e.target.value))}
+                  className="flex-1 h-1 accent-red-500"
+                  aria-label={t('AMCL divergence level', locale)}
+                />
+                <span className="text-[10px] text-gray-400">{t('Divergence', locale)}</span>
+              </div>
+            </div>
+          )}
+          <AmclQualityDisplay />
         </>
       )}
       {mode === 'hrz' && (
@@ -669,6 +686,29 @@ function SelectedWaypointEditor({ locale }: { locale: string }) {
       >
         {t('Delete Waypoint', locale)}
       </button>
+    </div>
+  );
+}
+
+function AmclQualityDisplay() {
+  const quality = useAmclStore((s) => s.quality);
+  const particleCount = useAmclStore((s) => s.particleCount);
+  const locale = useA11yStore((s) => s.locale);
+  const qColor = quality === 'good' ? 'text-green-400' : quality === 'fair' ? 'text-yellow-400' : 'text-red-400';
+  const qBg = quality === 'good' ? 'bg-green-900/40' : quality === 'fair' ? 'bg-yellow-900/40' : 'bg-red-900/40';
+  const qLabel = quality === 'good' ? t('Good', locale) : quality === 'fair' ? t('Fair', locale) : t('Poor', locale);
+  return (
+    <div className={`text-xs px-2 py-1.5 rounded ${qBg} space-y-1`}>
+      <div className="flex items-center gap-2">
+        <span className="text-gray-400">{t('Localization:', locale)}</span>
+        <span className={`font-mono font-bold ${qColor}`}>{qLabel}</span>
+      </div>
+      <div className="text-[10px] text-gray-500">{t('Particles:', locale)} {particleCount}</div>
+      {quality === 'poor' && (
+        <div className="text-[10px] text-red-400 animate-pulse">
+          ⚠ {t('Low localization!', locale)} {t('Use Relocate to reset.', locale)}
+        </div>
+      )}
     </div>
   );
 }

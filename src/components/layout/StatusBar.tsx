@@ -166,9 +166,8 @@ export function StatusBar({ mode, followRobot, onToggleFollow, onToggleTeleop }:
         >
           ☀
         </button>
-        <span className={canUndo ? 'text-blue-400' : 'text-gray-600'} aria-label={t('Undo', locale)}>Ctrl+Z</span>
-        <span className="text-gray-600">/</span>
-        <span className={canRedo ? 'text-blue-400' : 'text-gray-600'} aria-label={t('Redo', locale)}>Ctrl+Y</span>
+        <button onClick={() => { mode === 'mapedit' ? useMapStore.getState().mapUndo() : useUndoStore.getState().undo(); }} disabled={!canUndo} className={`px-1 py-0 rounded text-sm ${canUndo ? 'text-blue-400 hover:text-blue-300' : 'text-gray-600 cursor-default'}`} aria-label={t('Undo', locale)}>↶</button>
+        <button onClick={() => { mode === 'mapedit' ? useMapStore.getState().mapRedo() : useUndoStore.getState().redo(); }} disabled={!canRedo} className={`px-1 py-0 rounded text-sm ${canRedo ? 'text-blue-400 hover:text-blue-300' : 'text-gray-600 cursor-default'}`} aria-label={t('Redo', locale)}>↷</button>
         <button
           onClick={() => setShowShortcuts(!showShortcuts)}
           className={`px-1.5 py-0 rounded ${showShortcuts ? 'text-blue-400 bg-blue-900/40' : 'text-gray-600 hover:text-gray-400'}`}

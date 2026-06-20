@@ -41,8 +41,7 @@ export function MapFloor() {
       rotation={[-Math.PI / 2, 0, 0]}
       position={[0, -0.01, 0]}
       receiveShadow
-    >
-      <planeGeometry args={[1, 1]} />
+    >      <planeGeometry args={[1, 1]} />
       <meshBasicMaterial side={THREE.DoubleSide} />
     </mesh>
   );

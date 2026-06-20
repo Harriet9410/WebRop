@@ -12,6 +12,9 @@ import { MiniMapBridge, MiniMapOverlay } from './MiniMap';
 import { BreadcrumbTrail } from './BreadcrumbTrail';
 import { InflationOverlay } from './InflationOverlay';
 import { MapLabels3D } from './MapLabels3D';
+import { PathParticles } from './PathParticles';
+import { WaypointArrivalEffect } from './WaypointArrivalEffect';
+import { ZoneBreathingGlow } from './ZoneBreathingGlow';
 import { useLabelStore } from '../../stores/labelStore';
 import { useA11yStore } from '../../stores/a11yStore';
 import { useFleetStore } from '../../stores/fleetStore';
@@ -347,10 +350,11 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
     <Canvas
       camera={{ position: [5, 15, 15], fov: 50, near: 0.1, far: 500 }}
+      shadows
       style={{ background: '#1a1a2e' }}
     >
       <ambientLight intensity={0.6} />
-      <directionalLight position={[10, 20, 10]} intensity={0.8} />
+      <directionalLight position={[10, 20, 10]} intensity={0.8} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} shadow-camera-near={0.5} shadow-camera-far={60} shadow-camera-left={-15} shadow-camera-right={15} shadow-camera-top={15} shadow-camera-bottom={-15} />
       <MapFloor />
       {robots.map((r) => (
         <RobotModel key={r.id} x={r.pose.x} z={r.pose.z} yaw={r.pose.yaw} color={r.color} isActive={r.id === activeRobotId} robotType={r.robotType} />
@@ -392,6 +396,9 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       <BreadcrumbTrail />
       <InflationOverlay />
       <MapLabels3D />
+      {(mode === 'hrp') && <PathParticles />}
+      <WaypointArrivalEffect />
+      <ZoneBreathingGlow />
       <gridHelper args={[50, 50, '#555', '#333']} position={[5, 0, 5]} />
     </Canvas>
     <MiniMapOverlay />

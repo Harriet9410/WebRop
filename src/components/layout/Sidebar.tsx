@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ROSConnection } from '../ros/ROSConnection';
 import { ModeSelector, AppMode } from '../ui/ModeSelector';
 import { ActionPanel } from '../ui/ActionPanel';
+import { SlamPanel } from '../ui/SlamPanel';
 import { SnapshotPanel } from '../ui/SnapshotPanel';
 import { useRosStore } from '../../stores/rosStore';
 import { useA11yStore } from '../../stores/a11yStore';
@@ -33,6 +34,10 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
 
       <div className="flex-1 overflow-y-auto min-h-0">
         {isMock && <MapSelector locale={locale} />}
+
+        <div className="p-3 border-b border-gray-700">
+          <SlamPanel />
+        </div>
 
         <div className="p-3 border-b border-gray-700">
           <div className="text-xs text-gray-400 mb-1.5 font-medium">{t('Mode', locale)}</div>

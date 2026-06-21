@@ -4,10 +4,12 @@ import { useMapStore } from '../stores/mapStore';
 import { useFleetStore } from '../stores/fleetStore';
 import { useNavPlanStore } from '../stores/navPlanStore';
 import { useAmclStore } from '../stores/amclStore';
+import { useScanStore, ScanPoint } from '../stores/scanStore';
 import { OccupancyGridData } from '../utils/mapRenderer';
+import { saveMapToFiles, addMapMeta } from '../utils/mapSaver';
 import { quaternionToYaw, yawToQuaternion } from '../utils/coordinate';
 import type { SegmentSpeed } from '../stores/hrpStore';
-import type { RosMsg_OccupancyGrid, RosMsg_Odometry, RosMsg_Path } from './types';
+import type { RosMsg_OccupancyGrid, RosMsg_Odometry, RosMsg_Path, RosMsg_LaserScan, RosMsg_CompressedImage } from './types';
 
 let ros: Ros | null = null;
 let mapSub: Topic | null = null;
@@ -15,6 +17,8 @@ let odomSub: Topic | null = null;
 let navPlanSub: Topic | null = null;
 let particleSub: Topic | null = null;
 let cmdVelTopic: Topic | null = null;
+let scanSub: Topic | null = null;
+let cameraSub: Topic | null = null;
 let mapOriginX = 0;
 let mapOriginY = 0;
 let mapResolution = 0.05;
@@ -62,12 +66,15 @@ export function disconnect(): void {
   try { if (mapSub) { mapSub.unsubscribe(); mapSub = null; } } catch {}
   try { if (odomSub) { odomSub.unsubscribe(); odomSub = null; } } catch {}
   try { if (navPlanSub) { navPlanSub.unsubscribe(); navPlanSub = null; } } catch {}
+  try { if (scanSub) { scanSub.unsubscribe(); scanSub = null; } } catch {}
+  try { if (cameraSub) { cameraSub.unsubscribe(); cameraSub = null; } } catch {}
   cmdVelTopic = null;
   try { if (ros) { ros.close(); ros = null; } } catch {}
   useRosStore.getState().setStatus('disconnected');
   useMapStore.getState().setGrid(null as any);
   useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, { x: 2, z: 2, yaw: 0 });
   useNavPlanStore.getState().clearMoveBasePlan();
+  useScanStore.getState().clearScan();
 }
 
 function subscribeAll(): void {
@@ -160,6 +167,59 @@ function subscribeAll(): void {
       };
     });
     useAmclStore.getState().setParticles(particles);
+  });
+
+  scanSub = new Topic({
+    ros,
+    name: '/scan',
+    messageType: 'sensor_msgs/LaserScan',
+    throttle_rate: 200,
+  });
+
+  scanSub.subscribe((msg: unknown) => {
+    const m = msg as RosMsg_LaserScan;
+    const fleet = useFleetStore.getState();
+    const bot = fleet.robots.find((r) => r.id === fleet.activeRobotId);
+    if (!bot) return;
+
+    const robotX = bot.pose.x;
+    const robotZ = bot.pose.z;
+    const robotYaw = bot.pose.yaw;
+
+    const points: ScanPoint[] = [];
+    const angleMin = m.angle_min;
+    const angleInc = m.angle_increment;
+
+    for (let i = 0; i < m.ranges.length; i++) {
+      const range = m.ranges[i];
+      if (!isFinite(range) || range < m.range_min || range > m.range_max) continue;
+      const angle = angleMin + i * angleInc;
+      const rosAngle = angle;
+      const sceneDx = range * Math.cos(rosAngle);
+      const sceneDz = -range * Math.sin(rosAngle);
+      const cosY = Math.cos(robotYaw - Math.PI / 2);
+      const sinY = Math.sin(robotYaw - Math.PI / 2);
+      const px = robotX + sceneDx * cosY - sceneDz * sinY;
+      const pz = robotZ + sceneDx * sinY + sceneDz * cosY;
+      points.push({ x: px, z: pz, range });
+    }
+
+    useScanStore.getState().setScanData(points, robotX, robotZ, robotYaw);
+  });
+
+  cameraSub = new Topic({
+    ros,
+    name: '/camera/rgb/image_raw/compressed',
+    messageType: 'sensor_msgs/CompressedImage',
+    throttle_rate: 500,
+  });
+
+  cameraSub.subscribe((msg: unknown) => {
+    const m = msg as RosMsg_CompressedImage;
+    if (m.data) {
+      const prefix = m.format.includes('png') ? 'data:image/png;base64,' : 'data:image/jpeg;base64,';
+      useScanStore.getState().setCameraImage(prefix + m.data);
+    }
   });
 }
 
@@ -293,6 +353,32 @@ export function publishInitialPose(x: number, z: number, yaw: number): void {
   topic.publish(msg as never);
   useAmclStore.getState().setPendingPose(null);
   useAmclStore.getState().setIsRelocating(false);
+}
+
+export function saveMap(mapName: string): void {
+  const grid = useMapStore.getState().grid;
+  if (!grid) return;
+
+  saveMapToFiles(grid, mapName);
+  addMapMeta({
+    name: mapName || 'webrop_map',
+    timestamp: Date.now(),
+    width: grid.width,
+    height: grid.height,
+    resolution: grid.resolution,
+    originX: grid.originX,
+    originY: grid.originY,
+  });
+}
+
+export function publishSlamCommand(command: string): void {
+  if (!ros) return;
+  const topic = new Topic({
+    ros,
+    name: '/webrop/slam_command',
+    messageType: 'std_msgs/String',
+  });
+  topic.publish({ data: command } as never);
 }
 
 export { Ros, Topic };

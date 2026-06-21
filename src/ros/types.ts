@@ -34,3 +34,22 @@ export interface RosMsg_Path {
 export interface RosMsg_String {
   data: string;
 }
+
+export interface RosMsg_LaserScan {
+  header: { frame_id: string; stamp: { secs: number; nsecs: number } };
+  angle_min: number;
+  angle_max: number;
+  angle_increment: number;
+  time_increment: number;
+  scan_time: number;
+  range_min: number;
+  range_max: number;
+  ranges: number[];
+  intensities: number[];
+}
+
+export interface RosMsg_CompressedImage {
+  header: { frame_id: string; stamp: { secs: number; nsecs: number } };
+  format: string;
+  data: string;
+}

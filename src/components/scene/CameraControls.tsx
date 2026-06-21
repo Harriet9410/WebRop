@@ -6,7 +6,7 @@ import { useCameraStore } from '../../stores/cameraStore';
 import { useFleetStore } from '../../stores/fleetStore';
 
 interface CameraControlsProps {
-  mode: 'navigate' | 'hrz' | 'hrp' | 'mapedit';
+  mode: 'navigate' | 'hrz' | 'hrp' | 'mapedit' | 'tasks' | 'relocate';
   followRobot: boolean;
 }
 

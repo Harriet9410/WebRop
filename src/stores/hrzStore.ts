@@ -135,7 +135,7 @@ export const useHRZStore = create<HRZState>((set, get) => ({
       zones: s.zones.map((z) => z.id === zoneId ? { ...z, name } : z),
     })),
 
-  setCurrentZoneType: (zoneType) => set({ currentZoneType }),
+  setCurrentZoneType: (zoneType) => set({ currentZoneType: zoneType }),
 
   moveVertex: (zoneId, vertexIndex, newPos) =>
     set((s) => ({

@@ -6,12 +6,12 @@ import { useMapEditorStore, MapTool } from '../../stores/mapEditorStore';
 import { useUndoStore } from '../../stores/undoStore';
 import { useLabelStore } from '../../stores/labelStore';
 import { useA11yStore } from '../../stores/a11yStore';
-import { useFleetStore, FormationType, RobotType, ROBOT_TYPES, ROBOT_TYPE_LABELS, WaypointConfig, DEFAULT_WP_SPEED, DEFAULT_WP_WAIT } from '../../stores/fleetStore';
+import { useFleetStore, FormationType, RobotType, ROBOT_TYPES, ROBOT_TYPE_LABELS, WaypointConfig } from '../../stores/fleetStore';
 import { usePoseSyncStore, startPoseSync, stopPoseSync } from '../../stores/poseSyncStore';
 import { useWpSelectStore } from '../../stores/wpSelectStore';
 import { useAmclStore } from '../../stores/amclStore';
 import { TaskPanel } from './TaskPanel';
-import { t } from '../../i18n';
+import { t, type Locale } from '../../i18n';
 import { publishHRZZones, publishHRPPath, publishHRPSpeeds, publishNavGoal } from '../../ros/connection';
 import { mockPublishHRZZones, mockPublishHRPPath, mockStartWaypointNav, mockCancelNav, mockResetMap, mockClearMap, mockSetAmclDivergence } from '../../ros/mock';
 import { sceneToRos, dist } from '../../utils/coordinate';
@@ -486,11 +486,11 @@ function pointInPolygon(px: number, pz: number, vertices: { x: number; z: number
   return inside;
 }
 
-function PathStatsPanel({ path, segmentSpeeds, blockedSegments, locale, onAutoSpeed, estTime, totalDist }: {
+function PathStatsPanel({ path: _path, segmentSpeeds, blockedSegments, locale, onAutoSpeed, estTime, totalDist }: {
   path: { x: number; z: number }[];
   segmentSpeeds: number[];
   blockedSegments: boolean[];
-  locale: string;
+  locale: Locale;
   onAutoSpeed: () => void;
   estTime: string;
   totalDist: number;
@@ -524,7 +524,7 @@ function PathStatsPanel({ path, segmentSpeeds, blockedSegments, locale, onAutoSp
   );
 }
 
-function WaypointItem({ wp, index, robotId, robotColor, isNavigating, currentIdx, totalWps, locale }: {
+function WaypointItem({ wp, index, robotId, robotColor, isNavigating, currentIdx, totalWps: _totalWps, locale: _locale }: {
   wp: WaypointConfig;
   index: number;
   robotId: string;
@@ -532,9 +532,9 @@ function WaypointItem({ wp, index, robotId, robotColor, isNavigating, currentIdx
   isNavigating: boolean;
   currentIdx: number;
   totalWps: number;
-  locale: string;
+  locale: Locale;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [, setExpanded] = useState(false);
   const isActive = isNavigating && index === currentIdx;
   const isReached = isNavigating && index < currentIdx;
   const selWpId = useWpSelectStore((s) => s.selectedWpId);
@@ -613,7 +613,7 @@ function WaypointItem({ wp, index, robotId, robotColor, isNavigating, currentIdx
   );
 }
 
-function SelectedWaypointEditor({ locale }: { locale: string }) {
+function SelectedWaypointEditor({ locale }: { locale: Locale }) {
   const selRobotId = useWpSelectStore((s) => s.selectedRobotId);
   const selWpId = useWpSelectStore((s) => s.selectedWpId);
   const robots = useFleetStore((s) => s.robots);

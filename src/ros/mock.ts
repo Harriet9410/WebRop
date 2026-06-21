@@ -291,7 +291,6 @@ const ARRIVE_THRESHOLD = 0.04;
 
 const BATTERY_DRAIN_RATE_MOVING = 0.05;
 const BATTERY_DRAIN_RATE_IDLE = 0.002;
-const BATTERY_CHARGE_RATE = 0.2;
 
 function getCurrentSegmentSpeed(): SegmentSpeed {
   if (pathIdx >= 1 && pathIdx - 1 < pathSegmentSpeeds.length) {

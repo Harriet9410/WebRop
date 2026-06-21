@@ -1,8 +1,8 @@
-import { useTaskStore, TaskChain, TaskStep, TaskExecution } from '../stores/taskStore';
+import { useTaskStore, TaskStep, TaskChain } from '../stores/taskStore';
 import { useFleetStore } from '../stores/fleetStore';
-import { useHRPStore, DEFAULT_SPEED } from '../stores/hrpStore';
+import { DEFAULT_SPEED } from '../stores/hrpStore';
 import { useToastStore } from '../stores/toastStore';
-import { mockPublishHRPPath, mockCancelNav, setMockRobotPose } from './mock';
+import { mockPublishHRPPath, mockCancelNav } from './mock';
 import { publishHRPPath, publishHRPSpeeds, publishNavGoal } from './connection';
 import { useRosStore } from '../stores/rosStore';
 
@@ -127,7 +127,7 @@ function tickExecutor(): void {
       continue;
     }
 
-    if (!bot.navigating && step.type !== 'wait') {
+    if (!bot.navigating && (step.type === 'path' || step.type === 'waypoint')) {
       advanceStep(exec.id, exec.currentStep, chain, bot.id);
     }
   }

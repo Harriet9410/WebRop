@@ -34,7 +34,7 @@ interface StatusBarProps {
   onToggleTeleop: () => void;
 }
 
-export function StatusBar({ mode, followRobot, onToggleFollow, onToggleTeleop }: StatusBarProps) {
+export function StatusBar({ mode: _mode, followRobot, onToggleFollow, onToggleTeleop }: StatusBarProps) {
   const rosStatus = useRosStore((s) => s.status);
   const isMock = useRosStore((s) => s.isMock);
   const zoneCount = useHRZStore((s) => s.zones.length);

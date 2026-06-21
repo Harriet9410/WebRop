@@ -7,7 +7,6 @@ import { CameraControls } from './CameraControls';
 import { HRZEditor3D } from '../editor/HRZEditor3D';
 import { HRPEditor3D } from '../editor/HRPEditor3D';
 import { NavPathVisual } from './NavPathVisual';
-import { MapEditPreview } from './MapEditPreview';
 import { MiniMapBridge, MiniMapOverlay } from './MiniMap';
 import { BreadcrumbTrail } from './BreadcrumbTrail';
 import { InflationOverlay } from './InflationOverlay';

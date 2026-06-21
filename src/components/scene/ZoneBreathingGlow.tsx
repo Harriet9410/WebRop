@@ -41,7 +41,7 @@ function ZoneGlow({ vertices, color, outlineColor, breathSpeed, timeRef }: {
   breathSpeed: number;
   timeRef: React.RefObject<number>;
 }) {
-  const lineRef = useRef<THREE.Line>(null);
+  const lineRef = useRef<any>(null);
   const dotRefs = useRef<(THREE.Mesh | null)[]>([]);
 
   useFrame(() => {

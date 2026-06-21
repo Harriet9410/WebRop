@@ -3,8 +3,6 @@ import { useFleetStore } from '../../stores/fleetStore';
 export function FormationVisual() {
   const robots = useFleetStore((s) => s.robots);
   const activeRobotId = useFleetStore((s) => s.activeRobotId);
-  const formation = useFleetStore((s) => s.formation);
-  const formationSpacing = useFleetStore((s) => s.formationSpacing);
 
   if (robots.length <= 1) return null;
 

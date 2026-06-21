@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { useTaskStore, TaskChain, TaskStep, CronSchedule, ConditionType, ConditionConfig, computeNextCronRun, cronToHumanReadable } from '../../stores/taskStore';
+import { useTaskStore, TaskStep, ConditionType, ConditionConfig, computeNextCronRun, cronToHumanReadable } from '../../stores/taskStore';
 import { useHRPStore, DEFAULT_SPEED } from '../../stores/hrpStore';
 import { useFleetStore } from '../../stores/fleetStore';
 import { useA11yStore } from '../../stores/a11yStore';
-import { t } from '../../i18n';
+import { t, type Locale } from '../../i18n';
 import { executeTaskChain, cancelExecution } from '../../ros/taskExecutor';
-import { Vec2 } from '../../utils/coordinate';
 
 type TaskTab = 'chains' | 'schedule' | 'conditions' | 'board';
 
@@ -195,14 +194,14 @@ function ChainEditorTab() {
   );
 }
 
-function StepItem({ step, index, total, onRemove, onDrag, onUpdate, locale }: {
+function StepItem({ step, index, total: _total, onRemove, onDrag, onUpdate, locale }: {
   step: TaskStep;
   index: number;
   total: number;
   onRemove: () => void;
   onDrag: (from: number, to: number) => void;
   onUpdate: (updates: Partial<TaskStep>) => void;
-  locale: string;
+  locale: Locale;
 }) {
   const [expanded, setExpanded] = useState(false);
   const typeIcon: Record<string, string> = { path: '📍', waypoint: '📌', wait: '⏳' };

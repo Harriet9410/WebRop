@@ -40,7 +40,9 @@ function CarModel({ x, z, yaw, color, isActive }: Omit<RobotModelProps, 'robotTy
   useFrame((_, delta) => {
     if (groupRef.current) {
       groupRef.current.position.set(x, 0, z);
-      groupRef.current.rotation.y = yaw;
+      // 车头(FrontBumper/绿色大灯)在 local -Z；取反 yaw 让车头对齐实际前进方向(与雷达扫描一致)
+      // 若仍不对：去掉负号，或改成 +Math.PI
+      groupRef.current.rotation.y = -yaw;
     }
     if (lidarRef.current) {
       lidarRef.current.rotation.y += delta * 3;

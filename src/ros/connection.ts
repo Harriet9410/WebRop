@@ -150,7 +150,7 @@ function subscribeAll(): void {
 
   cmdVelTopic = new Topic({
     ros,
-    name: '/cmd_vel',
+    name: '/teleop_vel',
     messageType: 'geometry_msgs/Twist',
   });
 
@@ -365,7 +365,7 @@ export function publishCmdVel(linearX: number, angularZ: number): void {
   if (!cmdVelTopic) {
     cmdVelTopic = new Topic({
       ros,
-      name: '/cmd_vel',
+      name: '/teleop_vel',
       messageType: 'geometry_msgs/Twist',
     });
   }

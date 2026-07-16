@@ -30,7 +30,7 @@ export function LaserScanVisual() {
     for (let i = 0; i < count; i++) {
       const p = points[i];
       positions[i * 3] = p.x;
-      positions[i * 3 + 1] = 0.05;
+      positions[i * 3 + 1] = 0.18;
       positions[i * 3 + 2] = p.z;
 
       const t = Math.min(p.range / 8.0, 1.0);
@@ -39,10 +39,10 @@ export function LaserScanVisual() {
       colors[i * 3 + 2] = t;
 
       linePositions[i * 6] = robotX;
-      linePositions[i * 6 + 1] = 0.05;
+      linePositions[i * 6 + 1] = 0.18;
       linePositions[i * 6 + 2] = robotZ;
       linePositions[i * 6 + 3] = p.x;
-      linePositions[i * 6 + 4] = 0.05;
+      linePositions[i * 6 + 4] = 0.18;
       linePositions[i * 6 + 5] = p.z;
     }
 
@@ -67,18 +67,18 @@ export function LaserScanVisual() {
 
   return (
     <group>
-      <points ref={pointsRef} visible={false}>
+      <points ref={pointsRef} visible={false} renderOrder={999}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" count={0} array={positions} itemSize={3} />
           <bufferAttribute attach="attributes-color" count={0} array={colors} itemSize={3} />
         </bufferGeometry>
-        <pointsMaterial size={0.06} vertexColors transparent opacity={0.9} depthWrite={false} sizeAttenuation />
+        <pointsMaterial size={0.14} vertexColors transparent opacity={0.95} depthWrite={false} depthTest={false} sizeAttenuation />
       </points>
-      <lineSegments ref={linesRef} visible={false}>
+      <lineSegments ref={linesRef} visible={false} renderOrder={998}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" count={0} array={linePositions} itemSize={3} />
         </bufferGeometry>
-        <lineBasicMaterial color="#00e5ff" transparent opacity={0.15} depthWrite={false} />
+        <lineBasicMaterial color="#00e5ff" transparent opacity={0.5} depthWrite={false} depthTest={false} />
       </lineSegments>
     </group>
   );

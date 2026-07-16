@@ -29,7 +29,7 @@ import { useDragStore } from '../../stores/dragStore';
 import { useUndoStore } from '../../stores/undoStore';
 import { useNavPlanStore } from '../../stores/navPlanStore';
 import { mockPaintBrush, mockPaintRect, mockPlaceRobot } from '../../ros/mock';
-import { publishNavGoal, publishInitialPose } from '../../ros/connection';
+import { publishNavGoal, relocateRobot } from '../../ros/connection';
 import { setMockRobotPose } from '../../ros/mock';
 import { Vec2, dist } from '../../utils/coordinate';
 import { initTouchHandlers, useTouchStore } from '../../stores/touchStore';
@@ -317,7 +317,7 @@ function SceneEvents({ mode }: { mode: AppMode }) {
           if (useRosStore.getState().isMock) {
             setMockRobotPose(pending.x, pending.z, pending.yaw);
           } else {
-            publishInitialPose(pending.x, pending.z, pending.yaw);
+            relocateRobot(pending.x, pending.z, pending.yaw);
           }
           useAmclStore.getState().setPendingPose(null);
           useAmclStore.getState().setIsRelocating(false);

@@ -21,6 +21,8 @@ let scanSub: Topic | null = null;
 let cameraSub: Topic | null = null;
 let moveBaseStatusSub: Topic | null = null;
 let batterySub: Topic | null = null;
+let amclPoseSub: Topic | null = null;
+let amclPoseActive = false; // 收到 /amcl_pose 或乐观重定位后置 true，抑制 /odom 覆盖位置
 let mapOriginX = 0;
 let mapOriginY = 0;
 let mapResolution = 0.05;
@@ -75,6 +77,8 @@ export function disconnect(): void {
   try { if (cameraSub) { cameraSub.unsubscribe(); cameraSub = null; } } catch {}
   try { if (moveBaseStatusSub) { moveBaseStatusSub.unsubscribe(); moveBaseStatusSub = null; } } catch {}
   try { if (batterySub) { batterySub.unsubscribe(); batterySub = null; } } catch {}
+  try { if (amclPoseSub) { amclPoseSub.unsubscribe(); amclPoseSub = null; } } catch {}
+  amclPoseActive = false;
   cmdVelTopic = null;
   try { if (ros) { ros.close(); ros = null; } } catch {}
   useRosStore.getState().setStatus('disconnected');
@@ -124,15 +128,40 @@ function subscribeAll(): void {
     const q = m.pose.pose.orientation;
     const rosYaw = quaternionToYaw(q.x, q.y, q.z, q.w);
     const scenePos = rosToScene(p.x, p.y);
+    // /amcl_pose(map 系定位)是位置主源；没收到时才用 /odom 兜底位置，否则只更新速度
+    if (!amclPoseActive) {
+      useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, {
+        x: scenePos.x,
+        z: scenePos.z,
+        yaw: Math.PI / 2 - rosYaw,
+      });
+    }
+    useFleetStore.getState().setRobotVelocity(useFleetStore.getState().activeRobotId,
+      m.twist.twist.linear.x,
+      m.twist.twist.angular.z
+    );
+  });
+
+  // AMCL 的 map 系定位结果：用它驱动小车位置（重定位时会跳、且与地图对齐）；收到后抑制 /odom 覆盖
+  amclPoseSub = new Topic({
+    ros,
+    name: '/amcl_pose',
+    messageType: 'geometry_msgs/PoseWithCovarianceStamped',
+    throttle_rate: 100,
+  });
+
+  amclPoseSub.subscribe((msg: unknown) => {
+    const m = msg as { pose: { pose: { position: { x: number; y: number; z: number }; orientation: { x: number; y: number; z: number; w: number } } } };
+    const p = m.pose.pose.position;
+    const q = m.pose.pose.orientation;
+    const rosYaw = quaternionToYaw(q.x, q.y, q.z, q.w);
+    const scenePos = rosToScene(p.x, p.y);
+    amclPoseActive = true;
     useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, {
       x: scenePos.x,
       z: scenePos.z,
       yaw: Math.PI / 2 - rosYaw,
     });
-    useFleetStore.getState().setRobotVelocity(useFleetStore.getState().activeRobotId,
-      m.twist.twist.linear.x,
-      m.twist.twist.angular.z
-    );
   });
 
   navPlanSub = new Topic({
@@ -408,6 +437,13 @@ export function publishInitialPose(x: number, z: number, yaw: number): void {
   topic.publish(msg as never);
   useAmclStore.getState().setPendingPose(null);
   useAmclStore.getState().setIsRelocating(false);
+}
+
+// 重定位：乐观地把小车立刻移到点击位置（即时反馈）+ 抑制 /odom 覆盖 + 发 /initialpose 让 AMCL 收敛
+export function relocateRobot(x: number, z: number, yaw: number): void {
+  amclPoseActive = true; // 抑制 /odom 把车拉回旧位置，等 /amcl_pose 接管
+  useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, { x, z, yaw });
+  publishInitialPose(x, z, yaw);
 }
 
 export function saveMap(mapName: string): void {

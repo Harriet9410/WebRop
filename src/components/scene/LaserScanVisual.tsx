@@ -72,7 +72,7 @@ export function LaserScanVisual() {
           <bufferAttribute attach="attributes-position" count={0} array={positions} itemSize={3} />
           <bufferAttribute attach="attributes-color" count={0} array={colors} itemSize={3} />
         </bufferGeometry>
-        <pointsMaterial size={0.14} vertexColors transparent opacity={0.95} depthWrite={false} depthTest={false} sizeAttenuation />
+        <pointsMaterial size={10} vertexColors transparent opacity={0.95} depthWrite={false} depthTest={false} sizeAttenuation={false} />
       </points>
       <lineSegments ref={linesRef} visible={false} renderOrder={998}>
         <bufferGeometry>

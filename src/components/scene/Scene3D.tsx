@@ -738,7 +738,9 @@ function RelocatePosePreview() {
   if (!pendingPose) return null;
   const { x, z, yaw } = pendingPose;
   return (
-    <group position={[x, 0.02, z]} rotation={[0, yaw, 0]}>
+    {/* 旋转方向必须和车模型(rotation.y=-yaw，车头在 local -Z)一致，
+        否则红杠会指向车尾、且跟鼠标方向相反。 */}
+    <group position={[x, 0.02, z]} rotation={[0, -yaw, 0]}>
       <mesh position={[0, 0.3, 0]}>
         <coneGeometry args={[0.15, 0.5, 8]} />
         <meshBasicMaterial color="#ff1744" transparent opacity={0.8} />
@@ -747,6 +749,7 @@ function RelocatePosePreview() {
         <ringGeometry args={[0.1, 0.18, 24]} />
         <meshBasicMaterial color="#ff1744" side={2} transparent opacity={0.6} />
       </mesh>
+      {/* 红杠在 local -Z = 车头方向，改 -yaw 后与车头/鼠标拖拽方向三者一致 */}
       <mesh position={[0, 0, -0.4]}>
         <boxGeometry args={[0.05, 0.05, 0.5]} />
         <meshBasicMaterial color="#ff1744" transparent opacity={0.6} />

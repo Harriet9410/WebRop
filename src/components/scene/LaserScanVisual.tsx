@@ -2,15 +2,11 @@ import { useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useScanStore } from '../../stores/scanStore';
+import { useFleetStore } from '../../stores/fleetStore';
 
 const MAX_POINTS = 2000;
 
 export function LaserScanVisual() {
-  const points = useScanStore((s) => s.points);
-  const robotX = useScanStore((s) => s.robotX);
-  const robotZ = useScanStore((s) => s.robotZ);
-  const showScan = useScanStore((s) => s.showScan);
-
   const pointsRef = useRef<THREE.Points>(null);
   const linesRef = useRef<THREE.LineSegments>(null);
 
@@ -18,32 +14,63 @@ export function LaserScanVisual() {
   const linePositions = useMemo(() => new Float32Array(MAX_POINTS * 2 * 3), []);
   const colors = useMemo(() => new Float32Array(MAX_POINTS * 3), []);
 
+  // 每帧用「实时机器人位姿 + 原始 scan」重算点位：地图加载/重定位导致位姿跳变时，
+  // 激光始终贴着当前机器人，不会冻在旧坐标而"消失"。
   useFrame(() => {
-    if (!showScan || points.length === 0) {
+    const scan = useScanStore.getState();
+    if (!scan.showScan || scan.ranges.length === 0) {
       if (pointsRef.current) pointsRef.current.visible = false;
       if (linesRef.current) linesRef.current.visible = false;
       return;
     }
 
-    const count = Math.min(points.length, MAX_POINTS);
+    const bot = useFleetStore.getState().getActiveRobot();
+    if (!bot) {
+      if (pointsRef.current) pointsRef.current.visible = false;
+      if (linesRef.current) linesRef.current.visible = false;
+      return;
+    }
 
-    for (let i = 0; i < count; i++) {
-      const p = points[i];
-      positions[i * 3] = p.x;
-      positions[i * 3 + 1] = 0.18;
-      positions[i * 3 + 2] = p.z;
+    const robotX = bot.pose.x;
+    const robotZ = bot.pose.z;
+    const robotYaw = bot.pose.yaw;
+    const { ranges, angleMin, angleInc, rangeMin, rangeMax } = scan;
 
-      const t = Math.min(p.range / 8.0, 1.0);
-      colors[i * 3] = 1.0 - t * 0.5;
-      colors[i * 3 + 1] = 0.3 + t * 0.5;
-      colors[i * 3 + 2] = t;
+    const cosY = Math.cos(robotYaw - Math.PI / 2);
+    const sinY = Math.sin(robotYaw - Math.PI / 2);
 
-      linePositions[i * 6] = robotX;
-      linePositions[i * 6 + 1] = 0.18;
-      linePositions[i * 6 + 2] = robotZ;
-      linePositions[i * 6 + 3] = p.x;
-      linePositions[i * 6 + 4] = 0.18;
-      linePositions[i * 6 + 5] = p.z;
+    let count = 0;
+    for (let i = 0; i < ranges.length && count < MAX_POINTS; i++) {
+      const range = ranges[i];
+      if (!isFinite(range) || range < rangeMin || range > rangeMax) continue;
+      const angle = angleMin + i * angleInc;
+      const sceneDx = range * Math.cos(angle);
+      const sceneDz = -range * Math.sin(angle);
+      const px = robotX + sceneDx * cosY - sceneDz * sinY;
+      const pz = robotZ + sceneDx * sinY + sceneDz * cosY;
+
+      positions[count * 3] = px;
+      positions[count * 3 + 1] = 0.18;
+      positions[count * 3 + 2] = pz;
+
+      const t = Math.min(range / 8.0, 1.0);
+      colors[count * 3] = 1.0 - t * 0.5;
+      colors[count * 3 + 1] = 0.3 + t * 0.5;
+      colors[count * 3 + 2] = t;
+
+      linePositions[count * 6] = robotX;
+      linePositions[count * 6 + 1] = 0.18;
+      linePositions[count * 6 + 2] = robotZ;
+      linePositions[count * 6 + 3] = px;
+      linePositions[count * 6 + 4] = 0.18;
+      linePositions[count * 6 + 5] = pz;
+      count++;
+    }
+
+    if (count === 0) {
+      if (pointsRef.current) pointsRef.current.visible = false;
+      if (linesRef.current) linesRef.current.visible = false;
+      return;
     }
 
     if (pointsRef.current) {

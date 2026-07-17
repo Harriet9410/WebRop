@@ -4,7 +4,7 @@ import { useMapStore } from '../stores/mapStore';
 import { useFleetStore } from '../stores/fleetStore';
 import { useNavPlanStore } from '../stores/navPlanStore';
 import { useAmclStore } from '../stores/amclStore';
-import { useScanStore, ScanPoint } from '../stores/scanStore';
+import { useScanStore } from '../stores/scanStore';
 import { OccupancyGridData } from '../utils/mapRenderer';
 import { saveMapToFiles, addMapMeta } from '../utils/mapSaver';
 import { quaternionToYaw, yawToQuaternion } from '../utils/coordinate';
@@ -214,33 +214,10 @@ function subscribeAll(): void {
 
   scanSub.subscribe((msg: unknown) => {
     const m = msg as RosMsg_LaserScan;
-    const fleet = useFleetStore.getState();
-    const bot = fleet.robots.find((r) => r.id === fleet.activeRobotId);
-    if (!bot) return;
-
-    const robotX = bot.pose.x;
-    const robotZ = bot.pose.z;
-    const robotYaw = bot.pose.yaw;
-
-    const points: ScanPoint[] = [];
-    const angleMin = m.angle_min;
-    const angleInc = m.angle_increment;
-
-    for (let i = 0; i < m.ranges.length; i++) {
-      const range = m.ranges[i];
-      if (!isFinite(range) || range < m.range_min || range > m.range_max) continue;
-      const angle = angleMin + i * angleInc;
-      const rosAngle = angle;
-      const sceneDx = range * Math.cos(rosAngle);
-      const sceneDz = -range * Math.sin(rosAngle);
-      const cosY = Math.cos(robotYaw - Math.PI / 2);
-      const sinY = Math.sin(robotYaw - Math.PI / 2);
-      const px = robotX + sceneDx * cosY - sceneDz * sinY;
-      const pz = robotZ + sceneDx * sinY + sceneDz * cosY;
-      points.push({ x: px, z: pz, range });
-    }
-
-    useScanStore.getState().setScanData(points, robotX, robotZ, robotYaw);
+    // 只存原始激光数据，不在此处算点位（点位改由 LaserScanVisual 每帧用实时位姿重算）。
+    useScanStore.getState().setScanData(
+      m.ranges, m.angle_min, m.angle_increment, m.range_min, m.range_max
+    );
   });
 
   cameraSub = new Topic({

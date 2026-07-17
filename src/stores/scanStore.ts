@@ -1,11 +1,5 @@
 import { create } from 'zustand';
 
-export interface ScanPoint {
-  x: number;
-  z: number;
-  range: number;
-}
-
 export type SlamMethod = 'gmapping' | 'cartographer' | 'hector' | 'rtabmap';
 
 export type SensorDevice = 'rplidar' | 'hokuyo' | 'kinect' | 'realsense';
@@ -48,10 +42,13 @@ export const SLAM_SENSOR_MAP: Record<SlamMethod, SensorDevice[]> = {
 };
 
 interface ScanState {
-  points: ScanPoint[];
-  robotX: number;
-  robotZ: number;
-  robotYaw: number;
+  // 原始激光数据（不绑定机器人位姿）；点位由 LaserScanVisual 每帧用实时位姿重算，
+  // 避免地图加载/重定位导致位姿跳变时激光点冻在旧位置而"消失"。
+  ranges: number[];
+  angleMin: number;
+  angleInc: number;
+  rangeMin: number;
+  rangeMax: number;
   scanTime: number;
   showScan: boolean;
   showCamera: boolean;
@@ -59,7 +56,7 @@ interface ScanState {
   slamActive: boolean;
   slamMethod: SlamMethod;
   sensorDevice: SensorDevice;
-  setScanData: (points: ScanPoint[], robotX: number, robotZ: number, robotYaw: number) => void;
+  setScanData: (ranges: number[], angleMin: number, angleInc: number, rangeMin: number, rangeMax: number) => void;
   setShowScan: (show: boolean) => void;
   setShowCamera: (show: boolean) => void;
   setCameraImage: (img: string | null) => void;
@@ -70,10 +67,11 @@ interface ScanState {
 }
 
 export const useScanStore = create<ScanState>((set) => ({
-  points: [],
-  robotX: 0,
-  robotZ: 0,
-  robotYaw: 0,
+  ranges: [],
+  angleMin: 0,
+  angleInc: 0,
+  rangeMin: 0,
+  rangeMax: 0,
   scanTime: 0,
   showScan: true,
   showCamera: false,
@@ -82,8 +80,8 @@ export const useScanStore = create<ScanState>((set) => ({
   slamMethod: 'gmapping',
   sensorDevice: 'rplidar',
 
-  setScanData: (points, robotX, robotZ, robotYaw) =>
-    set({ points, robotX, robotZ, robotYaw, scanTime: Date.now() }),
+  setScanData: (ranges, angleMin, angleInc, rangeMin, rangeMax) =>
+    set({ ranges, angleMin, angleInc, rangeMin, rangeMax, scanTime: Date.now() }),
 
   setShowScan: (showScan) => set({ showScan }),
   setShowCamera: (showCamera) => set({ showCamera }),
@@ -95,5 +93,5 @@ export const useScanStore = create<ScanState>((set) => ({
     return { slamMethod, sensorDevice: device };
   }),
   setSensorDevice: (sensorDevice) => set({ sensorDevice }),
-  clearScan: () => set({ points: [], cameraImage: null }),
+  clearScan: () => set({ ranges: [], cameraImage: null }),
 }));

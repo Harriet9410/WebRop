@@ -15,7 +15,7 @@ export function SlamPanel() {
   const showScan = useScanStore((s) => s.showScan);
   const showCamera = useScanStore((s) => s.showCamera);
   const cameraImage = useScanStore((s) => s.cameraImage);
-  const scanPointCount = useScanStore((s) => s.points.length);
+  const scanPointCount = useScanStore((s) => s.ranges.length);
   const slamActive = useScanStore((s) => s.slamActive);
   const slamMethod = useScanStore((s) => s.slamMethod);
   const sensorDevice = useScanStore((s) => s.sensorDevice);

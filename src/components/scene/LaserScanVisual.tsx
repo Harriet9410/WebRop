@@ -94,14 +94,14 @@ export function LaserScanVisual() {
 
   return (
     <group>
-      <points ref={pointsRef} visible={false} renderOrder={999}>
+      <points ref={pointsRef} visible={false} renderOrder={999} frustumCulled={false}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" count={0} array={positions} itemSize={3} />
           <bufferAttribute attach="attributes-color" count={0} array={colors} itemSize={3} />
         </bufferGeometry>
         <pointsMaterial size={10} vertexColors transparent opacity={0.95} depthWrite={false} depthTest={false} sizeAttenuation={false} />
       </points>
-      <lineSegments ref={linesRef} visible={false} renderOrder={998}>
+      <lineSegments ref={linesRef} visible={false} renderOrder={998} frustumCulled={false}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" count={0} array={linePositions} itemSize={3} />
         </bufferGeometry>

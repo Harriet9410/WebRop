@@ -27,6 +27,39 @@ function getShortcuts(locale: Locale) {
   ];
 }
 
+// WASD 操控状态指示器：贴在 WASD 按钮正上方
+// 两级反馈：开了 Teleop 但没按键 → 灰色"待命"；有键按下 → 绿色"使用中"+脉冲，W/A/S/D 对应键亮起
+function TeleopStatusBadge({ keys, locale }: { keys: Set<string>; locale: Locale }) {
+  const anyKey = keys.size > 0;
+  const label = anyKey ? t('Controlling', locale) : t('Standby', locale);
+  const cap = (k: string) =>
+    `w-4 h-4 flex items-center justify-center rounded text-[9px] font-mono border ${
+      keys.has(k) ? 'bg-green-500/80 border-green-300 text-white' : 'bg-gray-700/60 border-gray-600 text-gray-500'
+    }`;
+  return (
+    <div
+      role="status"
+      aria-label={`Teleop ${label}`}
+      className={`pointer-events-none absolute bottom-full right-0 mb-1 px-1.5 py-1 rounded-md border text-[10px] shadow-lg whitespace-nowrap ${
+        anyKey ? 'bg-green-900/70 border-green-500/60' : 'bg-gray-800/90 border-gray-600'
+      }`}
+    >
+      <div className="flex items-center gap-1 mb-0.5">
+        <span className={`w-1.5 h-1.5 rounded-full ${anyKey ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
+        <span className={anyKey ? 'text-green-300 font-medium' : 'text-gray-400'}>{label}</span>
+      </div>
+      <div className="flex flex-col items-center gap-0.5">
+        <div className={cap('w')}>W</div>
+        <div className="flex gap-0.5">
+          <div className={cap('a')}>A</div>
+          <div className={cap('s')}>S</div>
+          <div className={cap('d')}>D</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface StatusBarProps {
   mode: AppMode;
   followRobot: boolean;
@@ -55,6 +88,7 @@ export function StatusBar({ mode: _mode, followRobot, onToggleFollow, onToggleTe
     if (undoCanRedo) useUndoStore.getState().redo();
   };
   const teleopEnabled = useTeleopStore((s) => s.teleopEnabled);
+  const teleopKeys = useTeleopStore((s) => s.keys);
   const showInflation = useInflationStore((s) => s.showInflation);
   const locale = useA11yStore((s) => s.locale);
   const fleetRobots = useFleetStore((s) => s.robots);
@@ -150,14 +184,17 @@ export function StatusBar({ mode: _mode, followRobot, onToggleFollow, onToggleTe
         {t('Inflate', locale)}
       </button>
       <span className="ml-auto flex items-center gap-3">
-        <button
-          onClick={onToggleTeleop}
-          className={`px-1.5 py-0 rounded ${teleopEnabled ? 'text-yellow-400 bg-yellow-900/40 font-medium' : 'text-gray-600 hover:text-gray-400'}`}
-          aria-label={`${t('WASD', locale)} teleop`}
-          aria-pressed={teleopEnabled}
-        >
-          {t('WASD', locale)}
-        </button>
+        <div className="relative">
+          <button
+            onClick={onToggleTeleop}
+            className={`px-1.5 py-0 rounded ${teleopEnabled ? 'text-yellow-400 bg-yellow-900/40 font-medium' : 'text-gray-600 hover:text-gray-400'}`}
+            aria-label={`${t('WASD', locale)} teleop`}
+            aria-pressed={teleopEnabled}
+          >
+            {t('WASD', locale)}
+          </button>
+          {teleopEnabled && <TeleopStatusBadge keys={teleopKeys} locale={locale} />}
+        </div>
         {shiftHeld && <span className="text-cyan-400 font-medium">{t('SNAP 0.5m', locale)}</span>}
         <button
           onClick={onToggleFollow}

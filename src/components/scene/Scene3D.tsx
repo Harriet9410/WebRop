@@ -737,9 +737,9 @@ function RelocatePosePreview() {
   const pendingPose = useAmclStore((s) => s.pendingPose);
   if (!pendingPose) return null;
   const { x, z, yaw } = pendingPose;
+  // 旋转方向必须和车模型(rotation.y=-yaw，车头在 local -Z)一致，
+  // 否则红杠会指向车尾、且跟鼠标方向相反。
   return (
-    {/* 旋转方向必须和车模型(rotation.y=-yaw，车头在 local -Z)一致，
-        否则红杠会指向车尾、且跟鼠标方向相反。 */}
     <group position={[x, 0.02, z]} rotation={[0, -yaw, 0]}>
       <mesh position={[0, 0.3, 0]}>
         <coneGeometry args={[0.15, 0.5, 8]} />

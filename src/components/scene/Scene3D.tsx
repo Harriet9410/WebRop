@@ -277,7 +277,7 @@ function SceneEvents({ mode }: { mode: AppMode }) {
       if (mode === 'relocate' && relocateStart.current) {
         const dx = pt.x - relocateStart.current.x;
         const dz = pt.z - relocateStart.current.z;
-        const yaw = Math.atan2(-dx, -dz);
+        const yaw = Math.atan2(dx, -dz);
         useAmclStore.getState().setPendingPose({ x: relocateStart.current.x, z: relocateStart.current.z, yaw });
       }
     };

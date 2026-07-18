@@ -516,9 +516,9 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       {moveBasePlan.length >= 2 && !isMock && (
         <NavPathVisual path={moveBasePlan} color="#ffffff" opacity={0.5} />
       )}
-      {/* /hrp_path 手绘路径（HoloLens2/Unity 发 或 WebRop 自画），深绿色叠显在地图上（区别于青色激光） */}
+      {/* /hrp_path 手绘路径（HoloLens2/Unity 发 或 WebRop 自画），红色叠显在地图上（醒目，区别于青色激光） */}
       {hrpPath.length >= 2 && (
-        <NavPathVisual path={hrpPath} color="#2e7d32" opacity={0.95} />
+        <NavPathVisual path={hrpPath} color="#e53935" opacity={0.95} />
       )}
       <CameraControls mode={mode} followRobot={followRobot} />
       <MiniMapBridge />

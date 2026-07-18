@@ -72,7 +72,7 @@ export function PathParticles() {
         <bufferAttribute attach="attributes-alpha" count={PARTICLE_COUNT} array={alphas} itemSize={1} />
       </bufferGeometry>
       <pointsMaterial
-        color={isDrawing ? '#66bb6a' : '#2e7d32'}
+        color={isDrawing ? '#ff5252' : '#e53935'}
         size={isDrawing ? 0.06 : 0.04}
         transparent
         opacity={0.8}

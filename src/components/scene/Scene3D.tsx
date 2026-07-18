@@ -418,6 +418,7 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
   const robots = useFleetStore((s) => s.robots);
   const activeRobotId = useFleetStore((s) => s.activeRobotId);
   const moveBasePlan = useNavPlanStore((s) => s.moveBasePlan);
+  const hrpPath = useNavPlanStore((s) => s.hrpPath);
   const isMock = useRosStore((s) => s.isMock);
 
   const activeRobot = robots.find((r) => r.id === activeRobotId);
@@ -514,6 +515,10 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       <AmclParticleCloud />
       {moveBasePlan.length >= 2 && !isMock && (
         <NavPathVisual path={moveBasePlan} color="#ffffff" opacity={0.5} />
+      )}
+      {/* /hrp_path 手绘路径（HoloLens2/Unity 发 或 WebRop 自画），深绿色叠显在地图上（区别于青色激光） */}
+      {hrpPath.length >= 2 && (
+        <NavPathVisual path={hrpPath} color="#2e7d32" opacity={0.95} />
       )}
       <CameraControls mode={mode} followRobot={followRobot} />
       <MiniMapBridge />

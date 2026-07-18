@@ -15,6 +15,7 @@ let ros: Ros | null = null;
 let mapSub: Topic | null = null;
 let odomSub: Topic | null = null;
 let navPlanSub: Topic | null = null;
+let hrpPathSub: Topic | null = null;
 let particleSub: Topic | null = null;
 let cmdVelTopic: Topic | null = null;
 let scanSub: Topic | null = null;
@@ -73,6 +74,7 @@ export function disconnect(): void {
   try { if (mapSub) { mapSub.unsubscribe(); mapSub = null; } } catch {}
   try { if (odomSub) { odomSub.unsubscribe(); odomSub = null; } } catch {}
   try { if (navPlanSub) { navPlanSub.unsubscribe(); navPlanSub = null; } } catch {}
+  try { if (hrpPathSub) { hrpPathSub.unsubscribe(); hrpPathSub = null; } } catch {}
   try { if (scanSub) { scanSub.unsubscribe(); scanSub = null; } } catch {}
   try { if (cameraSub) { cameraSub.unsubscribe(); cameraSub = null; } } catch {}
   try { if (moveBaseStatusSub) { moveBaseStatusSub.unsubscribe(); moveBaseStatusSub = null; } } catch {}
@@ -175,6 +177,18 @@ function subscribeAll(): void {
     const m = msg as RosMsg_Path;
     const scenePath = m.poses.map((p) => rosToScene(p.pose.position.x, p.pose.position.y));
     useNavPlanStore.getState().setMoveBasePlan(scenePath);
+  });
+
+  // 收 /hrp_path（WebRop 自画 或 HoloLens2/Unity 发），转场景坐标存 store，供地图叠显
+  hrpPathSub = new Topic({
+    ros,
+    name: '/hrp_path',
+    messageType: 'nav_msgs/Path',
+  });
+  hrpPathSub.subscribe((msg: unknown) => {
+    const m = msg as RosMsg_Path;
+    const scenePath = m.poses.map((p) => rosToScene(p.pose.position.x, p.pose.position.y));
+    useNavPlanStore.getState().setHrpPath(scenePath);
   });
 
   cmdVelTopic = new Topic({

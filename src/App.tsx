@@ -105,7 +105,7 @@ function App() {
   return (
     <div className={`flex h-screen w-screen bg-gray-900 text-white ${highContrast ? 'hc-mode' : ''} ${lightTheme ? 'light-theme' : ''}`}>
       <Sidebar mode={mode} onModeChange={setMode} />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <div className="flex-1">
           <Scene3D mode={mode} followRobot={followRobot} />
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { ROSConnection } from '../ros/ROSConnection';
 import { ModeSelector, AppMode } from '../ui/ModeSelector';
 import { ActionPanel } from '../ui/ActionPanel';
@@ -14,14 +14,57 @@ interface SidebarProps {
   onModeChange: (mode: AppMode) => void;
 }
 
+const MIN_SIDEBAR = 256; // 当前宽度 w-64，作为最小宽度
+const MAX_RATIO = 0.5;   // 最大 = 视口的 50%
+const SIDEBAR_KEY = 'webrop.sidebarWidth.v2';
+
 export function Sidebar({ mode, onModeChange }: SidebarProps) {
   const isMock = useRosStore((s) => s.isMock);
   const locale = useA11yStore((s) => s.locale);
   const highContrast = useA11yStore((s) => s.highContrast);
   const lightTheme = useA11yStore((s) => s.lightTheme);
 
+  // 可调宽度：最小 256px(当前大小)，最大 50% 视口；首次默认取中点，持久化到 localStorage
+  const [width, setWidth] = useState<number>(() => {
+    const maxW = window.innerWidth * MAX_RATIO;
+    const saved = Number(localStorage.getItem(SIDEBAR_KEY));
+    const initial = saved > 0 ? saved : (MIN_SIDEBAR + maxW) / 2; // 最大与最小的中点
+    return Math.max(MIN_SIDEBAR, Math.min(maxW, initial));
+  });
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_KEY, String(width));
+  }, [width]);
+
+  // 视口变窄时保证不超过 50%
+  useEffect(() => {
+    const onResize = () => setWidth((w) => Math.max(MIN_SIDEBAR, Math.min(window.innerWidth * MAX_RATIO, w)));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const startResize = (e: ReactPointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = width;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    const onMove = (ev: PointerEvent) => {
+      const maxW = window.innerWidth * MAX_RATIO;
+      setWidth(Math.max(MIN_SIDEBAR, Math.min(maxW, startWidth + (ev.clientX - startX))));
+    };
+    const onUp = () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
   return (
-    <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col h-full overflow-hidden relative z-10" role="navigation" aria-label={t('Actions', locale)}>
+    <div className="bg-gray-800 border-r border-gray-700 flex flex-col h-full overflow-hidden relative z-10 shrink-0" style={{ width }} role="navigation" aria-label={t('Actions', locale)}>
       <div className="p-3 border-b border-gray-700 shrink-0">
         <h1 className="text-sm font-bold text-white">{t('MRReP / MRHaD', locale)}</h1>
         <p className="text-xs text-gray-400 mt-0.5">{t('Web Editor', locale)}</p>
@@ -99,6 +142,14 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
         <div className="text-[10px] text-gray-500">{t('Middle-click: Pan', locale)}</div>
         <div className="text-[10px] text-gray-500">{t('Scroll: Zoom', locale)}</div>
       </div>
+
+      {/* 可调宽度手柄：拖动调整侧边栏宽度，最小 256px，最大 50% 视口 */}
+      <div
+        onPointerDown={startResize}
+        className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize bg-transparent hover:bg-blue-500/50 active:bg-blue-500/70 transition-colors z-20"
+        aria-hidden="true"
+        title="拖动调整宽度"
+      />
     </div>
   );
 }

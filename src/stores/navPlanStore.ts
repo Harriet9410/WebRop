@@ -9,6 +9,10 @@ interface NavPlanState {
   hrpPath: Vec2[];
   setHrpPath: (path: Vec2[]) => void;
   clearHrpPath: () => void;
+  // 收到的 /hrp_draft（HL2 画线时的实时草稿，不触发车），青色叠显，clear 时清空
+  hrpDraft: Vec2[];
+  setHrpDraft: (path: Vec2[]) => void;
+  clearHrpDraft: () => void;
 }
 
 export const useNavPlanStore = create<NavPlanState>((set) => ({
@@ -18,4 +22,7 @@ export const useNavPlanStore = create<NavPlanState>((set) => ({
   hrpPath: [],
   setHrpPath: (path) => set({ hrpPath: path }),
   clearHrpPath: () => set({ hrpPath: [] }),
+  hrpDraft: [],
+  setHrpDraft: (path) => set({ hrpDraft: path }),
+  clearHrpDraft: () => set({ hrpDraft: [] }),
 }));

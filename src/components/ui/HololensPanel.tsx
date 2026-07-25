@@ -6,6 +6,7 @@ export function HololensPanel() {
   const offset = useHololensStore((s) => s.offset);
   const calibrating = useHololensStore((s) => s.calibrating);
   const setCalibrating = useHololensStore((s) => s.setCalibrating);
+  const calibPoint1 = useHololensStore((s) => s.calibPoint1);
   const [connected, setConnected] = useState(false);
 
   // 每 500ms 刷新连接状态（3 秒没数据 = 断开）
@@ -39,13 +40,16 @@ export function HololensPanel() {
         </div>
       )}
 
-      {/* 校准按钮 */}
+      {/* 校准按钮：未校准时进入；校准中变"取消"（清掉两点状态） */}
       <button
         type="button"
-        disabled={!connected || calibrating}
+        disabled={!connected}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={() => {
           if (calibrating) {
+            // 取消：清两点状态
+            useHololensStore.getState().setCalibPoint1(null);
+            useHololensStore.getState().setPendingPose(null);
             setCalibrating(false);
           } else {
             setCalibrating(true);
@@ -59,12 +63,16 @@ export function HololensPanel() {
             : 'bg-gray-700 text-gray-500 cursor-not-allowed'
         }`}
       >
-        {calibrating ? '🔧 点击地图校准中...（再按取消）' : connected ? '校准 HL2 位置' : 'HL2 未连接'}
+        {calibrating ? '✕ 取消校准' : connected ? '校准 HL2（两点）' : 'HL2 未连接'}
       </button>
 
       {calibrating && (
         <div className="text-[10px] text-yellow-400 bg-yellow-900/30 rounded p-2">
-          点击 3D 地图上你实际站的位置，HL2 标记会跳过去。
+          {calibPoint1 ? (
+            <>第二步：走到<b>另一个位置</b>（隔 1~2 米以上），<b>点一下地面</b>即完成校准。</>
+          ) : (
+            <>第一步：<b>按住你站的位置 + 拖出面朝方向</b>，松手。（拖方向=定朝向）</>
+          )}
         </div>
       )}
     </div>

@@ -29,7 +29,7 @@ import { useDragStore } from '../../stores/dragStore';
 import { useUndoStore } from '../../stores/undoStore';
 import { useNavPlanStore } from '../../stores/navPlanStore';
 import { mockPaintBrush, mockPaintRect, mockPlaceRobot } from '../../ros/mock';
-import { publishNavGoal, relocateRobot, calibrateHololens } from '../../ros/connection';
+import { publishNavGoal, relocateRobot, finishHololensCalibration } from '../../ros/connection';
 import { setMockRobotPose } from '../../ros/mock';
 import { Vec2, dist } from '../../utils/coordinate';
 import { initTouchHandlers, useTouchStore } from '../../stores/touchStore';
@@ -60,6 +60,7 @@ function SceneEvents({ mode }: { mode: AppMode }) {
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
   const pendingWpDrag = useRef<{ robotId: string; wpIdx: number; wpId: string } | null>(null);
   const relocateStart = useRef<Vec2 | null>(null);
+  const hololensCalibStart = useRef<{ trueX: number; trueZ: number; rawX: number; rawZ: number; rawYaw: number } | null>(null);
   const dragState = useRef<{
     type: 'hrz' | 'hrp';
     zoneId?: string;
@@ -90,12 +91,21 @@ function SceneEvents({ mode }: { mode: AppMode }) {
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
 
-      // HL2 面板激活时：点击地面只做 HL2 校准，不触发 Robot 操作
+      // HL2 面板激活时：两点校准（第一点 press+拖朝向，第二点 tap 位置），不触发 Robot 操作
       const panel = useHololensStore.getState().panel;
       if (panel === 'hl2') {
         if (!useHololensStore.getState().calibrating) return;
         const pt2 = getScenePoint(e, false);
-        if (pt2) calibrateHololens(pt2.x, pt2.z);
+        if (!pt2) return;
+        // 只有第一阶段（calibPoint1 还没设）在 down 时记录第一点；第二阶段在 up 时收尾
+        if (!useHololensStore.getState().calibPoint1) {
+          const cur = useHololensStore.getState().pose;
+          hololensCalibStart.current = {
+            trueX: pt2.x, trueZ: pt2.z,
+            rawX: cur ? cur.x : 0, rawZ: cur ? cur.z : 0, rawYaw: cur ? cur.yaw : 0,
+          };
+          useHololensStore.getState().setPendingPose({ x: pt2.x, z: pt2.z, yaw: cur ? cur.yaw : 0 });
+        }
         return;
       }
 
@@ -230,15 +240,28 @@ function SceneEvents({ mode }: { mode: AppMode }) {
         relocateStart.current = pt;
         useAmclStore.getState().setPendingPose({ x: pt.x, z: pt.z, yaw: 0 });
         useAmclStore.getState().setIsRelocating(true);
-      } else if (useHololensStore.getState().calibrating) {
-        // HL2 校准：点击地面 = 把 HL2 标记移到这个位置
-        calibrateHololens(pt.x, pt.z);
       }
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      // HL2 面板激活时不处理 Robot 拖拽
-      if (useHololensStore.getState().panel === 'hl2') return;
+      // HL2 面板：第一阶段拖拽 = 设朝向（atan2(dx,-dz)，与 relocate 同公式）；第二阶段不处理
+      if (useHololensStore.getState().panel === 'hl2') {
+        const cp1 = useHololensStore.getState().calibPoint1;
+        if (cp1) return; // 已进入第二阶段，忽略拖拽
+        if (!useHololensStore.getState().calibrating || !hololensCalibStart.current) return;
+        const ptH = getScenePoint(e, false);
+        if (!ptH) return;
+        const dx = ptH.x - hololensCalibStart.current.trueX;
+        const dz = ptH.z - hololensCalibStart.current.trueZ;
+        if (dx * dx + dz * dz < 1e-6) return;
+        const yaw = Math.atan2(dx, -dz);
+        useHololensStore.getState().setPendingPose({
+          x: hololensCalibStart.current.trueX,
+          z: hololensCalibStart.current.trueZ,
+          yaw,
+        });
+        return;
+      }
 
       const pt = getScenePoint(e, mode === 'hrz' || mode === 'hrp');
       if (!pt) return;
@@ -305,11 +328,30 @@ function SceneEvents({ mode }: { mode: AppMode }) {
     const onPointerUp = (e: PointerEvent) => {
       if (e.button !== 0) return;
 
-      // HL2 面板：校准完成
+      // HL2 面板：松手——第一阶段提交第一点，第二阶段点第二下完成校准
       if (useHololensStore.getState().panel === 'hl2') {
         if (useHololensStore.getState().calibrating) {
-          useHololensStore.getState().setCalibrating(false);
+          const cp1 = useHololensStore.getState().calibPoint1;
+          if (!cp1) {
+            // 第一阶段收尾：记第一点（位置 + 朝向偏角 dyaw），进入第二阶段
+            const start = hololensCalibStart.current;
+            if (start) {
+              const pending = useHololensStore.getState().pendingPose;
+              const yaw = pending ? pending.yaw : start.rawYaw;
+              useHololensStore.getState().setCalibPoint1({
+                trueX: start.trueX, trueZ: start.trueZ,
+                rawX: start.rawX, rawZ: start.rawZ,
+                dyaw: yaw - start.rawYaw,
+              });
+            }
+            useHololensStore.getState().setPendingPose(null);
+          } else {
+            // 第二阶段：点第二下 → 两点解 R/T，完成校准（没点中地面则保持第二阶段）
+            const pt2 = getScenePoint(e, false);
+            if (pt2) finishHololensCalibration(pt2.x, pt2.z);
+          }
         }
+        hololensCalibStart.current = null;
         return;
       }
 
@@ -351,9 +393,6 @@ function SceneEvents({ mode }: { mode: AppMode }) {
           useAmclStore.getState().setIsRelocating(false);
         }
         relocateStart.current = null;
-      } else if (useHololensStore.getState().calibrating) {
-        // 校准完成
-        useHololensStore.getState().setCalibrating(false);
       }
 
       if (mode === 'mapedit') {
@@ -450,6 +489,7 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
   const activeRobotId = useFleetStore((s) => s.activeRobotId);
   const moveBasePlan = useNavPlanStore((s) => s.moveBasePlan);
   const hrpPath = useNavPlanStore((s) => s.hrpPath);
+  const hrpDraft = useNavPlanStore((s) => s.hrpDraft);
   const isMock = useRosStore((s) => s.isMock);
 
   const activeRobot = robots.find((r) => r.id === activeRobotId);
@@ -545,12 +585,17 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       <RelocatePosePreview />
       <AmclParticleCloud />
       <HololensMarker />
+      <HololensCalibPreview />
       {moveBasePlan.length >= 2 && !isMock && (
         <NavPathVisual path={moveBasePlan} color="#ffffff" opacity={0.5} />
       )}
       {/* /hrp_path 手绘路径（HoloLens2/Unity 发 或 WebRop 自画），红色叠显在地图上（醒目，区别于青色激光） */}
       {hrpPath.length >= 2 && (
         <NavPathVisual path={hrpPath} color="#e53935" opacity={0.95} />
+      )}
+      {/* /hrp_draft HL2 画线实时草稿（青色），边画边显；clear/send 后清空。区别于红色已发路径 */}
+      {hrpDraft.length >= 2 && (
+        <NavPathVisual path={hrpDraft} color="#00e5ff" opacity={0.85} />
       )}
       <CameraControls mode={mode} followRobot={followRobot} />
       <MiniMapBridge />
@@ -774,8 +819,12 @@ function HololensMarker() {
   const alignedPose = useHololensStore((s) => s.alignedPose);
   const calibrating = useHololensStore((s) => s.calibrating);
   if (!alignedPose) return null;
+  // 朝向约定必须和小车标记 RobotModel 完全一致：
+  //   - rotation.y = -yaw（小车也取反，见 RobotModel.tsx）
+  //   - 箭头"前方"在 local -Z（小车车头/FrontBumper 也在 local -Z）
+  //   之前这里是 rotation.y=+yaw 且箭头在 +Z，正负号+轴向双重反 → 朝向镜像（实测"实际南→web西"）。
   return (
-    <group position={[alignedPose.x, 0, alignedPose.z]} rotation={[0, alignedPose.yaw, 0]}>
+    <group position={[alignedPose.x, 0, alignedPose.z]} rotation={[0, -alignedPose.yaw, 0]}>
       {/* 地面杆 */}
       <mesh position={[0, 0.15, 0]}>
         <cylinderGeometry args={[0.015, 0.015, 0.3, 8]} />
@@ -791,8 +840,8 @@ function HololensMarker() {
           depthTest={false}
         />
       </mesh>
-      {/* 朝向箭头 */}
-      <mesh position={[0, 0.35, 0.25]} rotation={[Math.PI / 2, 0, 0]} renderOrder={999}>
+      {/* 朝向箭头：锥尖朝 local -Z（前方），与车头同向 */}
+      <mesh position={[0, 0.35, -0.25]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={999}>
         <coneGeometry args={[0.08, 0.2, 8]} />
         <meshStandardMaterial color={calibrating ? '#ffeb3b' : '#ff1744'} emissive={calibrating ? '#ffeb3b' : '#ff1744'} emissiveIntensity={0.5} depthTest={false} />
       </mesh>
@@ -807,6 +856,43 @@ function HololensMarker() {
           {calibrating ? '🔧 点击地面校准 HL2' : 'HL2'}
         </div>
       </Html>
+    </group>
+  );
+}
+
+// HL2 两点校准预览：
+//   第一阶段（calibPoint1 未设）：press 点位置 + drag 方向朝向（黄色环+方向条）。
+//   第二阶段（calibPoint1 已设）：在第一点画静态环，提示"去点第二下"。
+function HololensCalibPreview() {
+  const pending = useHololensStore((s) => s.pendingPose);
+  const calibrating = useHololensStore((s) => s.calibrating);
+  const cp1 = useHololensStore((s) => s.calibPoint1);
+  if (!calibrating) return null;
+  // 第二阶段：静态标记第一点
+  if (cp1) {
+    return (
+      <group position={[cp1.trueX, 0.02, cp1.trueZ]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.12, 0.2, 24]} />
+          <meshBasicMaterial color="#ffeb3b" side={2} transparent opacity={0.8} depthTest={false} />
+        </mesh>
+      </group>
+    );
+  }
+  // 第一阶段：press 位置 + drag 朝向
+  if (!pending) return null;
+  return (
+    <group position={[pending.x, 0.02, pending.z]} rotation={[0, -pending.yaw, 0]}>
+      {/* 圆环 = 位置 */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <ringGeometry args={[0.12, 0.2, 24]} />
+        <meshBasicMaterial color="#ffeb3b" side={2} transparent opacity={0.8} depthTest={false} />
+      </mesh>
+      {/* 方向条 local -Z = 朝向 */}
+      <mesh position={[0, 0.02, -0.35]} renderOrder={999}>
+        <boxGeometry args={[0.06, 0.06, 0.5]} />
+        <meshBasicMaterial color="#ffeb3b" transparent opacity={0.85} depthTest={false} />
+      </mesh>
     </group>
   );
 }

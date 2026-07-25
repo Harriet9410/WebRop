@@ -17,6 +17,7 @@ let mapSub: Topic | null = null;
 let odomSub: Topic | null = null;
 let navPlanSub: Topic | null = null;
 let hrpPathSub: Topic | null = null;
+let hrpDraftSub: Topic | null = null;
 let particleSub: Topic | null = null;
 let cmdVelTopic: Topic | null = null;
 let scanSub: Topic | null = null;
@@ -77,6 +78,8 @@ export function disconnect(): void {
   try { if (odomSub) { odomSub.unsubscribe(); odomSub = null; } } catch {}
   try { if (navPlanSub) { navPlanSub.unsubscribe(); navPlanSub = null; } } catch {}
   try { if (hrpPathSub) { hrpPathSub.unsubscribe(); hrpPathSub = null; } } catch {}
+  try { if (hrpDraftSub) { hrpDraftSub.unsubscribe(); hrpDraftSub = null; } } catch {}
+  try { useNavPlanStore.getState().clearHrpDraft(); } catch {}
   try { if (hololensSub) { hololensSub.unsubscribe(); hololensSub = null; } } catch {}
   try { useHololensStore.getState().clear(); } catch {}
   try { if (scanSub) { scanSub.unsubscribe(); scanSub = null; } } catch {}
@@ -215,6 +218,18 @@ function subscribeAll(): void {
     const m = msg as RosMsg_Path;
     const scenePath = m.poses.map((p) => rosToScene(p.pose.position.x, p.pose.position.y));
     useNavPlanStore.getState().setHrpPath(scenePath);
+  });
+
+  // 收 /hrp_draft（HL2 画线时的实时草稿，不触发车）→ 青色叠显；空 Path = 清屏
+  hrpDraftSub = new Topic({
+    ros,
+    name: '/hrp_draft',
+    messageType: 'nav_msgs/Path',
+  });
+  hrpDraftSub.subscribe((msg: unknown) => {
+    const m = msg as RosMsg_Path;
+    const scenePath = m.poses.map((p) => rosToScene(p.pose.position.x, p.pose.position.y));
+    useNavPlanStore.getState().setHrpDraft(scenePath);
   });
 
   cmdVelTopic = new Topic({
@@ -463,40 +478,74 @@ export function relocateRobot(x: number, z: number, yaw: number): void {
   publishInitialPose(x, z, yaw);
 }
 
-// HL2 校准：用户在 WebRop 拖拽 HL2 标记到正确位置后调用
-// dragSceneX/Z = 用户拖到的 scene 坐标（正确位置）
-// 计算 raw → 正确的偏移，发给 HL2
-export function calibrateHololens(dragSceneX: number, dragSceneZ: number): void {
+// 两点校准·第二点提交：true2X/Z = 用户点第二下的 scene 坐标。
+// 用两点(raw₁→raw₂ vs 真实₁→真实₂)在 scene 空间直接量出位置旋转 R 与平移 T（构造自洽，一次到位）；
+// 朝向偏角 dyaw 已在第一点拖拽时量好。位置/朝向各在自己的空间量，不做跨帧换算。
+export function finishHololensCalibration(true2X: number, true2Z: number): void {
+  const p1 = useHololensStore.getState().calibPoint1;
   const pose = useHololensStore.getState().pose;
-  if (!pose) return;
+  if (!p1 || !pose) {
+    useHololensStore.getState().setCalibPoint1(null);
+    useHololensStore.getState().setCalibrating(false);
+    return;
+  }
+  const raw2X = pose.x;
+  const raw2Z = pose.z;
 
-  // 偏移 = 正确位置 - raw 位置（scene 坐标）
-  const dx = dragSceneX - pose.x;
-  const dz = dragSceneZ - pose.z;
+  // 两点太近 → 旋转量不出来，提示并保持第二阶段（不清 calibPoint1），让用户点远一点
+  const vRawX = raw2X - p1.rawX;
+  const vRawZ = raw2Z - p1.rawZ;
+  const rawStep = Math.hypot(vRawX, vRawZ);
+  if (rawStep < 0.3) {
+    useRosStore.getState().addRosLog({
+      direction: 'out',
+      topic: '/hololens/alignment',
+      summary: `两点太近(HL2 实测只移了 ${rawStep.toFixed(2)}m)，请走远一点再点第二下`,
+    });
+    return; // 不清状态，保持在第二阶段
+  }
 
-  // 更新 store（立即在 WebRop 上显示校准后的位置）
-  useHololensStore.getState().setOffset({ dx, dz, dyaw: 0 });
+  // ---- 标记位置仿射（scene 空间，两点量出）----
+  // R = ∠(raw₂−raw₁ → 真实₂−真实₁)，测量与应用同坐标系 → 自洽，无符号猜测。
+  const vTrueX = true2X - p1.trueX;
+  const vTrueZ = true2Z - p1.trueZ;
+  const cross = vRawX * vTrueZ - vRawZ * vTrueX;
+  const dot = vRawX * vTrueX + vRawZ * vTrueZ;
+  const rot = Math.atan2(cross, dot);
+  const c = Math.cos(rot);
+  const s = Math.sin(rot);
+  const rotRaw1X = c * p1.rawX - s * p1.rawZ;
+  const rotRaw1Z = s * p1.rawX + c * p1.rawZ;
+  const tx = p1.trueX - rotRaw1X;
+  const tz = p1.trueZ - rotRaw1Z;
+  useHololensStore.getState().setOffset({ tx, tz, rot, dyaw: p1.dyaw });
 
-  // 发给 HL2：scene 偏移转 ROS 偏移（rosToScene 反向）
-  // rosToScene: Scene_x = ROS_x → ROS_x = Scene_x
-  // rosToScene: Scene_z = -ROS_y → ROS_y = -Scene_z
-  // 所以 ROS 偏移 = scene 偏移（x 不变，y 取反 z）
-  if (!ros) return;
-  const topic = new Topic({
-    ros,
-    name: '/hololens/alignment',
-    messageType: 'geometry_msgs/Pose2D',
-  });
-  topic.publish({
-    x: dx,               // ROS x = scene dx
-    y: -dz,              // ROS y = -scene dz
-    theta: 0,
-  } as never);
-  useRosStore.getState().addRosLog({
-    direction: 'out',
-    topic: '/hololens/alignment',
-    summary: `Calibrate offset: scene(dx=${dx.toFixed(2)}, dz=${dz.toFixed(2)})`,
-  });
+  // ---- 路径对齐（best-effort，沿用上一轮的帧假设：用第一点 + dyaw）----
+  // 注意：路径(PathSender)走 UnityToROS、标记走 (-x,-z)，两帧不同；这里按标记帧算的仿射
+  //       发给 PathSender。carRelative=ON 时路径锚在车上不受影响；OFF 时若发现路径与标记差 90°，
+  //       说明需要单独标定路径帧（待办）。当前行为与上一轮一致，不会更差。
+  if (ros) {
+    const theta = -p1.dyaw;
+    const rawRos1 = sceneToRos(p1.rawX, p1.rawZ);
+    const trueRos1 = sceneToRos(p1.trueX, p1.trueZ);
+    const ct = Math.cos(theta);
+    const st = Math.sin(theta);
+    const rotRR1X = ct * rawRos1.x - st * rawRos1.y;
+    const rotRR1Y = st * rawRos1.x + ct * rawRos1.y;
+    const originX = trueRos1.x - rotRR1X;
+    const originY = trueRos1.y - rotRR1Y;
+    const topic = new Topic({ ros, name: '/hololens/alignment', messageType: 'geometry_msgs/Pose2D' });
+    topic.publish({ x: originX, y: originY, theta } as never);
+    useRosStore.getState().addRosLog({
+      direction: 'out',
+      topic: '/hololens/alignment',
+      summary: `Calibrate(2pt): marker rot=${(rot * 180 / Math.PI).toFixed(0)}° dyaw=${(p1.dyaw * 180 / Math.PI).toFixed(0)}° path theta=${(theta * 180 / Math.PI).toFixed(0)}°`,
+    });
+  }
+
+  // 清理校准状态
+  useHololensStore.getState().setCalibPoint1(null);
+  useHololensStore.getState().setCalibrating(false);
 }
 
 export function saveMap(mapName: string): void {

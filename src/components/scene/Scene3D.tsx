@@ -64,6 +64,8 @@ function SceneEvents({ mode }: { mode: AppMode }) {
     type: 'hrz' | 'hrp';
     zoneId?: string;
     vertexIndex: number;
+    zoneId?: string;
+    vertexIndex: number;
   } | null>(null);
 
   const getScenePoint = useCallback(
@@ -87,6 +89,16 @@ function SceneEvents({ mode }: { mode: AppMode }) {
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
+
+      // HL2 面板激活时：点击地面只做 HL2 校准，不触发 Robot 操作
+      const panel = useHololensStore.getState().panel;
+      if (panel === 'hl2') {
+        if (!useHololensStore.getState().calibrating) return;
+        const pt2 = getScenePoint(e, false);
+        if (pt2) calibrateHololens(pt2.x, pt2.z);
+        return;
+      }
+
       pointerDownPos.current = { x: e.clientX, y: e.clientY };
       pendingWpDrag.current = null;
 
@@ -225,6 +237,9 @@ function SceneEvents({ mode }: { mode: AppMode }) {
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      // HL2 面板激活时不处理 Robot 拖拽
+      if (useHololensStore.getState().panel === 'hl2') return;
+
       const pt = getScenePoint(e, mode === 'hrz' || mode === 'hrp');
       if (!pt) return;
 
@@ -289,6 +304,14 @@ function SceneEvents({ mode }: { mode: AppMode }) {
 
     const onPointerUp = (e: PointerEvent) => {
       if (e.button !== 0) return;
+
+      // HL2 面板：校准完成
+      if (useHololensStore.getState().panel === 'hl2') {
+        if (useHololensStore.getState().calibrating) {
+          useHololensStore.getState().setCalibrating(false);
+        }
+        return;
+      }
 
       if (pendingWpDrag.current && pointerDownPos.current) {
         const dx = e.clientX - pointerDownPos.current.x;

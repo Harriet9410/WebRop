@@ -4,6 +4,7 @@ import { useMapStore } from '../stores/mapStore';
 import { useFleetStore } from '../stores/fleetStore';
 import { useNavPlanStore } from '../stores/navPlanStore';
 import { useAmclStore } from '../stores/amclStore';
+import { useHololensStore } from '../stores/hololensStore';
 import { useScanStore } from '../stores/scanStore';
 import { OccupancyGridData } from '../utils/mapRenderer';
 import { saveMapToFiles, addMapMeta } from '../utils/mapSaver';
@@ -20,6 +21,7 @@ let particleSub: Topic | null = null;
 let cmdVelTopic: Topic | null = null;
 let scanSub: Topic | null = null;
 let cameraSub: Topic | null = null;
+let hololensSub: Topic | null = null;
 let moveBaseStatusSub: Topic | null = null;
 let batterySub: Topic | null = null;
 let amclPoseSub: Topic | null = null;
@@ -75,6 +77,8 @@ export function disconnect(): void {
   try { if (odomSub) { odomSub.unsubscribe(); odomSub = null; } } catch {}
   try { if (navPlanSub) { navPlanSub.unsubscribe(); navPlanSub = null; } } catch {}
   try { if (hrpPathSub) { hrpPathSub.unsubscribe(); hrpPathSub = null; } } catch {}
+  try { if (hololensSub) { hololensSub.unsubscribe(); hololensSub = null; } } catch {}
+  try { useHololensStore.getState().clear(); } catch {}
   try { if (scanSub) { scanSub.unsubscribe(); scanSub = null; } } catch {}
   try { if (cameraSub) { cameraSub.unsubscribe(); cameraSub = null; } } catch {}
   try { if (moveBaseStatusSub) { moveBaseStatusSub.unsubscribe(); moveBaseStatusSub = null; } } catch {}
@@ -163,6 +167,28 @@ function subscribeAll(): void {
       x: scenePos.x,
       z: scenePos.z,
       yaw: Math.PI / 2 - rosYaw,
+    });
+  });
+
+  // HL2 头部位姿（/hololens/pose）→ 显示标记
+  hololensSub = new Topic({
+    ros,
+    name: '/hololens/pose',
+    messageType: 'geometry_msgs/PoseStamped',
+    throttle_rate: 100,
+  });
+
+  hololensSub.subscribe((msg: unknown) => {
+    const m = msg as { pose: { position: { x: number; y: number; z: number }; orientation: { x: number; y: number; z: number; w: number } } };
+    const p = m.pose.position;
+    const q = m.pose.orientation;
+    const rosYaw = quaternionToYaw(q.x, q.y, q.z, q.w);
+    const scenePos = rosToScene(p.x, p.y);
+    useHololensStore.getState().setPose({
+      x: scenePos.x,
+      z: scenePos.z,
+      yaw: Math.PI / 2 - rosYaw,
+      connected: true,
     });
   });
 
@@ -435,6 +461,42 @@ export function relocateRobot(x: number, z: number, yaw: number): void {
   amclPoseActive = true; // 抑制 /odom 把车拉回旧位置，等 /amcl_pose 接管
   useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, { x, z, yaw });
   publishInitialPose(x, z, yaw);
+}
+
+// HL2 校准：用户在 WebRop 拖拽 HL2 标记到正确位置后调用
+// dragSceneX/Z = 用户拖到的 scene 坐标（正确位置）
+// 计算 raw → 正确的偏移，发给 HL2
+export function calibrateHololens(dragSceneX: number, dragSceneZ: number): void {
+  const pose = useHololensStore.getState().pose;
+  if (!pose) return;
+
+  // 偏移 = 正确位置 - raw 位置（scene 坐标）
+  const dx = dragSceneX - pose.x;
+  const dz = dragSceneZ - pose.z;
+
+  // 更新 store（立即在 WebRop 上显示校准后的位置）
+  useHololensStore.getState().setOffset({ dx, dz, dyaw: 0 });
+
+  // 发给 HL2：scene 偏移转 ROS 偏移（rosToScene 反向）
+  // rosToScene: Scene_x = ROS_x → ROS_x = Scene_x
+  // rosToScene: Scene_z = -ROS_y → ROS_y = -Scene_z
+  // 所以 ROS 偏移 = scene 偏移（x 不变，y 取反 z）
+  if (!ros) return;
+  const topic = new Topic({
+    ros,
+    name: '/hololens/alignment',
+    messageType: 'geometry_msgs/Pose2D',
+  });
+  topic.publish({
+    x: dx,               // ROS x = scene dx
+    y: -dz,              // ROS y = -scene dz
+    theta: 0,
+  } as never);
+  useRosStore.getState().addRosLog({
+    direction: 'out',
+    topic: '/hololens/alignment',
+    summary: `Calibrate offset: scene(dx=${dx.toFixed(2)}, dz=${dz.toFixed(2)})`,
+  });
 }
 
 export function saveMap(mapName: string): void {

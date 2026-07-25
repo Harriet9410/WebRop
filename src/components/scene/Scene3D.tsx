@@ -29,7 +29,7 @@ import { useDragStore } from '../../stores/dragStore';
 import { useUndoStore } from '../../stores/undoStore';
 import { useNavPlanStore } from '../../stores/navPlanStore';
 import { mockPaintBrush, mockPaintRect, mockPlaceRobot } from '../../ros/mock';
-import { publishNavGoal, relocateRobot } from '../../ros/connection';
+import { publishNavGoal, relocateRobot, calibrateHololens } from '../../ros/connection';
 import { setMockRobotPose } from '../../ros/mock';
 import { Vec2, dist } from '../../utils/coordinate';
 import { initTouchHandlers, useTouchStore } from '../../stores/touchStore';
@@ -37,6 +37,8 @@ import { WaypointConfig } from '../../stores/fleetStore';
 import { useWpSelectStore } from '../../stores/wpSelectStore';
 import { useTaskStore } from '../../stores/taskStore';
 import { useAmclStore } from '../../stores/amclStore';
+import { Html } from '@react-three/drei';
+import { useHololensStore } from '../../stores/hololensStore';
 
 const VERTEX_HIT_RADIUS = 0.15;
 const GRID_SIZE = 0.5;
@@ -216,6 +218,9 @@ function SceneEvents({ mode }: { mode: AppMode }) {
         relocateStart.current = pt;
         useAmclStore.getState().setPendingPose({ x: pt.x, z: pt.z, yaw: 0 });
         useAmclStore.getState().setIsRelocating(true);
+      } else if (useHololensStore.getState().calibrating) {
+        // HL2 校准：点击地面 = 把 HL2 标记移到这个位置
+        calibrateHololens(pt.x, pt.z);
       }
     };
 
@@ -323,6 +328,9 @@ function SceneEvents({ mode }: { mode: AppMode }) {
           useAmclStore.getState().setIsRelocating(false);
         }
         relocateStart.current = null;
+      } else if (useHololensStore.getState().calibrating) {
+        // 校准完成
+        useHololensStore.getState().setCalibrating(false);
       }
 
       if (mode === 'mapedit') {
@@ -513,6 +521,7 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       {mode === 'tasks' && <TaskChainMarkers />}
       <RelocatePosePreview />
       <AmclParticleCloud />
+      <HololensMarker />
       {moveBasePlan.length >= 2 && !isMock && (
         <NavPathVisual path={moveBasePlan} color="#ffffff" opacity={0.5} />
       )}
@@ -734,6 +743,47 @@ function AmclParticleCloud() {
           </mesh>
         </group>
       ))}
+    </group>
+  );
+}
+
+function HololensMarker() {
+  const alignedPose = useHololensStore((s) => s.alignedPose);
+  const calibrating = useHololensStore((s) => s.calibrating);
+  if (!alignedPose) return null;
+  return (
+    <group position={[alignedPose.x, 0, alignedPose.z]} rotation={[0, alignedPose.yaw, 0]}>
+      {/* 地面杆 */}
+      <mesh position={[0, 0.15, 0]}>
+        <cylinderGeometry args={[0.015, 0.015, 0.3, 8]} />
+        <meshBasicMaterial color="#ff1744" depthTest={false} />
+      </mesh>
+      {/* 球（校准时变黄+变大）*/}
+      <mesh position={[0, 0.35, 0]} renderOrder={999}>
+        <sphereGeometry args={[calibrating ? 0.2 : 0.15, 16, 16]} />
+        <meshStandardMaterial
+          color={calibrating ? '#ffeb3b' : '#ff1744'}
+          emissive={calibrating ? '#ffeb3b' : '#ff1744'}
+          emissiveIntensity={0.6}
+          depthTest={false}
+        />
+      </mesh>
+      {/* 朝向箭头 */}
+      <mesh position={[0, 0.35, 0.25]} rotation={[Math.PI / 2, 0, 0]} renderOrder={999}>
+        <coneGeometry args={[0.08, 0.2, 8]} />
+        <meshStandardMaterial color={calibrating ? '#ffeb3b' : '#ff1744'} emissive={calibrating ? '#ffeb3b' : '#ff1744'} emissiveIntensity={0.5} depthTest={false} />
+      </mesh>
+      {/* 标签 */}
+      <Html position={[0, 0.6, 0]} center>
+        <div style={{
+          background: calibrating ? 'rgba(255,235,59,0.95)' : 'rgba(255,23,68,0.85)',
+          color: calibrating ? '#333' : 'white',
+          padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+        }}>
+          {calibrating ? '🔧 点击地面校准 HL2' : 'HL2'}
+        </div>
+      </Html>
     </group>
   );
 }

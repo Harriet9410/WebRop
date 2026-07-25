@@ -4,8 +4,10 @@ import { ModeSelector, AppMode } from '../ui/ModeSelector';
 import { ActionPanel } from '../ui/ActionPanel';
 import { SlamPanel } from '../ui/SlamPanel';
 import { SnapshotPanel } from '../ui/SnapshotPanel';
+import { HololensPanel } from '../ui/HololensPanel';
 import { useRosStore } from '../../stores/rosStore';
 import { useA11yStore } from '../../stores/a11yStore';
+import { useHololensStore } from '../../stores/hololensStore';
 import { t, LOCALE_LABELS, Locale } from '../../i18n';
 import { onMockLog, getMockLog, mockResetMap, mockClearMap } from '../../ros/mock';
 
@@ -23,6 +25,9 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
   const locale = useA11yStore((s) => s.locale);
   const highContrast = useA11yStore((s) => s.highContrast);
   const lightTheme = useA11yStore((s) => s.lightTheme);
+  const panel = useHololensStore((s) => s.panel);
+  const hl2Connected = useHololensStore((s) => s.isHL2Connected());
+  const hl2Tick = useHololensStore((s) => s.lastUpdate);
 
   // 可调宽度：最小 256px(当前大小)，最大 50% 视口；首次默认取中点，持久化到 localStorage
   const [width, setWidth] = useState<number>(() => {
@@ -75,9 +80,53 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
         <ROSConnection />
       </div>
 
+      {/* Robot / HL2 切换器 */}
+      <div className="p-2 border-b border-gray-700 shrink-0">
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => useHololensStore.getState().setPanel('robot')}
+            className={`flex-1 text-xs px-2 py-1.5 rounded font-medium transition-colors ${
+              panel === 'robot'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-700 text-gray-400 hover:text-white'
+            }`}
+          >
+            🤖 Robot
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            disabled={!hl2Connected}
+            onClick={() => useHololensStore.getState().setPanel('hl2')}
+            className={`flex-1 text-xs px-2 py-1.5 rounded font-medium transition-colors ${
+              panel === 'hl2'
+                ? 'bg-red-600 text-white'
+                : hl2Connected
+                ? 'bg-gray-700 text-gray-400 hover:text-white'
+                : 'bg-gray-800 text-gray-600 cursor-not-allowed'
+            }`}
+            title={hl2Connected ? '' : 'HL2 未连接'}
+          >
+            🥽 HL2
+          </button>
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto min-h-0">
         {isMock && <MapSelector locale={locale} />}
 
+        {/* HL2 面板 */}
+        {panel === 'hl2' && (
+          <div className="p-3 border-b border-gray-700">
+            <div className="text-xs text-gray-400 mb-1.5 font-medium">HoloLens 2</div>
+            <HololensPanel />
+          </div>
+        )}
+
+        {/* Robot 面板（当前功能，选 Robot 时显示） */}
+        {panel === 'robot' && (<>
         <div className="p-3 border-b border-gray-700">
           <SlamPanel />
         </div>
@@ -91,6 +140,7 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
           <div className="text-xs text-gray-400 mb-1.5 font-medium">{t('Actions', locale)}</div>
           <ActionPanel mode={mode} />
         </div>
+        </>)}
 
         {isMock && <MockLogPanel locale={locale} />}
         {!isMock && <RosLogPanel locale={locale} />}

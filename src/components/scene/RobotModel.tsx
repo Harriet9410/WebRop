@@ -52,23 +52,31 @@ function CarModel({ x, z, yaw, color, isActive }: Omit<RobotModelProps, 'robotTy
   return (
     <group ref={groupRef}>
       <Footprint footprintColor={color || '#42a5f5'} />
-      <Chassis bodyColor={isActive ? (color || BODY_COLOR) : BODY_COLOR} />
+      {/*
+        车体按真车 EP 缩放：原模型底盘 ~0.44(宽)×0.48(长)，真车 0.24×0.32。
+        x(宽)×0.545、z(长)×0.667 → 0.24×0.32。轮子单独定位不缩放(保持圆形)。
+      */}
+      <group scale={[0.545, 1.0, 0.667]}>
+        <Chassis bodyColor={isActive ? (color || BODY_COLOR) : BODY_COLOR} />
+        <TopPlate />
+        <LidarGroup ref={lidarRef} />
+        <Sensors />
+        <LEDs />
+        <FrontBumper />
+      </group>
       <Wheels />
-      <TopPlate />
-      <LidarGroup ref={lidarRef} />
-      <Sensors />
-      <LEDs />
-      <FrontBumper />
     </group>
   );
 }
 
-const ROBOT_RADIUS = 0.16;
+// EP 占地 = move_base 的 footprint：0.22(宽/x) × 0.28(长/z)，矩形（与导航一致，非圆）
+const FOOTPRINT_WIDTH = 0.22;  // x（侧向）
+const FOOTPRINT_LENGTH = 0.28; // z（前进方向）
 
 function Footprint({ footprintColor = '#42a5f5' }: { footprintColor?: string }) {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
-      <circleGeometry args={[ROBOT_RADIUS, 48]} />
+      <planeGeometry args={[FOOTPRINT_WIDTH, FOOTPRINT_LENGTH]} />
       <meshBasicMaterial color={footprintColor} transparent opacity={0.2} side={2} depthWrite={false} />
     </mesh>
   );
@@ -94,11 +102,12 @@ function Chassis({ bodyColor = BODY_COLOR }: { bodyColor?: string }) {
 }
 
 function Wheels() {
+  // 轮距按真车缩小：x ±0.11(宽 0.22 内)、z ±0.13(长 0.26 轴距)；半径不变(保持圆形)
   const wheelPositions: [number, number, number, boolean][] = [
-    [-0.24, 0.07, 0.15, false],
-    [-0.24, 0.07, -0.15, false],
-    [0.24, 0.07, 0.15, true],
-    [0.24, 0.07, -0.15, true],
+    [-0.11, 0.07, 0.13, false],
+    [-0.11, 0.07, -0.13, false],
+    [0.11, 0.07, 0.13, true],
+    [0.11, 0.07, -0.13, true],
   ];
 
   return (

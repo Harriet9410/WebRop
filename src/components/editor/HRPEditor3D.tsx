@@ -187,7 +187,7 @@ function PathSegment({ from, to, color, speed, isSelected, blocked, onClick, onH
         {blocked ? (
           <lineDashedMaterial color="#dc2626" dashSize={0.15} gapSize={0.1} linewidth={isSelected ? 4 : 2} />
         ) : (
-          <lineBasicMaterial color={color} linewidth={isSelected ? 4 : 2} />
+          <lineBasicMaterial color="#e53935" linewidth={isSelected ? 4 : 2} />
         )}
       </line>
       {segDist > 0.2 && (

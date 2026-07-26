@@ -593,9 +593,9 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       {hrpPath.length >= 2 && (
         <NavPathVisual path={hrpPath} color="#e53935" opacity={0.95} />
       )}
-      {/* /hrp_draft HL2 画线实时草稿（青色），边画边显；clear/send 后清空。区别于红色已发路径 */}
+      {/* /hrp_draft HL2 画线实时草稿，边画边显；clear/send 后清空。统一红色（和 /hrp_path 一致） */}
       {hrpDraft.length >= 2 && (
-        <NavPathVisual path={hrpDraft} color="#00e5ff" opacity={0.85} />
+        <NavPathVisual path={hrpDraft} color="#e53935" opacity={0.85} />
       )}
       <CameraControls mode={mode} followRobot={followRobot} />
       <MiniMapBridge />

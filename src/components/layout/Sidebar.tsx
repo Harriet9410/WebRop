@@ -5,6 +5,7 @@ import { ActionPanel } from '../ui/ActionPanel';
 import { SlamPanel } from '../ui/SlamPanel';
 import { SnapshotPanel } from '../ui/SnapshotPanel';
 import { HololensPanel } from '../ui/HololensPanel';
+import { MissionControl } from '../ui/MissionControl';
 import { useRosStore } from '../../stores/rosStore';
 import { useA11yStore } from '../../stores/a11yStore';
 import { useHololensStore } from '../../stores/hololensStore';
@@ -129,6 +130,10 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
         {panel === 'robot' && (<>
         <div className="p-3 border-b border-gray-700">
           <SlamPanel />
+        </div>
+
+        <div className="p-3 border-b border-gray-700">
+          <MissionControl />
         </div>
 
         <div className="p-3 border-b border-gray-700">

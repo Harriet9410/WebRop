@@ -5,6 +5,7 @@ import { useFleetStore } from '../stores/fleetStore';
 import { useNavPlanStore } from '../stores/navPlanStore';
 import { useAmclStore } from '../stores/amclStore';
 import { useHololensStore } from '../stores/hololensStore';
+import { useMissionStore } from '../stores/missionStore';
 import { useScanStore } from '../stores/scanStore';
 import { OccupancyGridData } from '../utils/mapRenderer';
 import { saveMapToFiles, addMapMeta } from '../utils/mapSaver';
@@ -18,6 +19,7 @@ let odomSub: Topic | null = null;
 let navPlanSub: Topic | null = null;
 let hrpPathSub: Topic | null = null;
 let hrpDraftSub: Topic | null = null;
+let hrpStatusSub: Topic | null = null;
 let particleSub: Topic | null = null;
 let cmdVelTopic: Topic | null = null;
 let scanSub: Topic | null = null;
@@ -80,6 +82,8 @@ export function disconnect(): void {
   try { if (hrpPathSub) { hrpPathSub.unsubscribe(); hrpPathSub = null; } } catch {}
   try { if (hrpDraftSub) { hrpDraftSub.unsubscribe(); hrpDraftSub = null; } } catch {}
   try { useNavPlanStore.getState().clearHrpDraft(); } catch {}
+  try { if (hrpStatusSub) { hrpStatusSub.unsubscribe(); hrpStatusSub = null; } } catch {}
+  try { useMissionStore.getState().clear(); } catch {}
   try { if (hololensSub) { hololensSub.unsubscribe(); hololensSub = null; } } catch {}
   try { useHololensStore.getState().clear(); } catch {}
   try { if (scanSub) { scanSub.unsubscribe(); scanSub = null; } } catch {}
@@ -230,6 +234,17 @@ function subscribeAll(): void {
     const m = msg as RosMsg_Path;
     const scenePath = m.poses.map((p) => rosToScene(p.pose.position.x, p.pose.position.y));
     useNavPlanStore.getState().setHrpDraft(scenePath);
+  });
+
+  // 收 /hrp/status（hrp_follower_node 发：idle/running N/M/paused N/M/done）→ 任务控制条显示
+  hrpStatusSub = new Topic({
+    ros,
+    name: '/hrp/status',
+    messageType: 'std_msgs/String',
+  });
+  hrpStatusSub.subscribe((msg: unknown) => {
+    const m = msg as { data: string };
+    useMissionStore.getState().setStatus(m.data);
   });
 
   cmdVelTopic = new Topic({
@@ -546,6 +561,18 @@ export function finishHololensCalibration(true2X: number, true2Z: number): void 
   // 清理校准状态
   useHololensStore.getState().setCalibPoint1(null);
   useHololensStore.getState().setCalibrating(false);
+}
+
+// 任务控制：发 /hrp/control (std_msgs/String) → hrp_follower_node 响应 pause/resume/cancel
+export function publishHrpControl(cmd: 'pause' | 'resume' | 'cancel'): void {
+  if (!ros) return;
+  const topic = new Topic({ ros, name: '/hrp/control', messageType: 'std_msgs/String' });
+  topic.publish({ data: cmd } as never);
+  useRosStore.getState().addRosLog({
+    direction: 'out',
+    topic: '/hrp/control',
+    summary: cmd,
+  });
 }
 
 export function saveMap(mapName: string): void {

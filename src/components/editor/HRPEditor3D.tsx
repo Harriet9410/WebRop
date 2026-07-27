@@ -115,8 +115,9 @@ export function HRPEditor3D({ robotX, robotZ }: HRPEditor3DProps) {
       {path.map((p, i) => {
         const isDragged = dragInfo?.type === 'hrp' && dragInfo?.vertexIndex === i;
         return (
-          <mesh key={i} position={[p.x, isDragged ? 0.12 : 0.05, p.z]}>
-            <sphereGeometry args={[isDragged ? 0.12 : 0.07, 12, 12]} />
+          // 顶点球：半径 1.5cm，和 HL2(PathRenderer sphereRadius=0.015)一致；拖动时放大便于抓取
+          <mesh key={i} position={[p.x, isDragged ? 0.08 : 0.02, p.z]}>
+            <sphereGeometry args={[isDragged ? 0.06 : 0.015, 12, 12]} />
             <meshBasicMaterial color={isDragged ? '#ffffff' : i === 0 ? '#4caf50' : '#81c784'} />
           </mesh>
         );

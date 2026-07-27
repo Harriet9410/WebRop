@@ -14,6 +14,7 @@ import { MapLabels3D } from './MapLabels3D';
 import { PathParticles } from './PathParticles';
 import { ZoneBreathingGlow } from './ZoneBreathingGlow';
 import { LaserScanVisual } from './LaserScanVisual';
+import { PointCloudVisual } from './PointCloudVisual';
 import { useLabelStore } from '../../stores/labelStore';
 import { useA11yStore } from '../../stores/a11yStore';
 import { useFleetStore } from '../../stores/fleetStore';
@@ -604,6 +605,7 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       <MapLabels3D />
       {(mode === 'hrp') && <PathParticles />}
       {!isMock && <LaserScanVisual />}
+      {!isMock && <PointCloudVisual />}
       <ZoneBreathingGlow />
       <gridHelper args={[50, 50, '#555', '#333']} position={[5, 0, 5]} />
     </Canvas>

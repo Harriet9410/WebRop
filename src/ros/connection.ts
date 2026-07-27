@@ -7,6 +7,7 @@ import { useAmclStore } from '../stores/amclStore';
 import { useHololensStore } from '../stores/hololensStore';
 import { useMissionStore } from '../stores/missionStore';
 import { useScanStore } from '../stores/scanStore';
+import { useD435iStore, STALE_MS } from '../stores/d435iStore';
 import { OccupancyGridData } from '../utils/mapRenderer';
 import { saveMapToFiles, addMapMeta } from '../utils/mapSaver';
 import { quaternionToYaw, yawToQuaternion } from '../utils/coordinate';
@@ -29,6 +30,9 @@ let moveBaseStatusSub: Topic | null = null;
 let batterySub: Topic | null = null;
 let amclPoseSub: Topic | null = null;
 let amclPoseActive = false; // 收到 /amcl_pose 或乐观重定位后置 true，抑制 /odom 覆盖位置
+let rgbSub: Topic | null = null; // D435i RGB（深度相机面板）
+let cloudSub: Topic | null = null; // D435i 点云 /d435i/cloud_map（map 帧）
+let d435iWatchdog: ReturnType<typeof setInterval> | null = null;
 let mapOriginX = 0;
 let mapOriginY = 0;
 let mapResolution = 0.05;
@@ -46,6 +50,56 @@ function sceneToRos(sx: number, sz: number): { x: number; y: number } {
     x: sx + mapOriginX,
     y: mapOriginY + mapHeight * mapResolution - sz,
   };
+}
+
+// base64 字符串 → Uint8Array（rosbridge 把 PointCloud2.data 当 base64 串传）
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+// PointCloud2(map 帧) → scene 坐标点：x/y 用 rosToScene 投影，高度 z 当 scene-y(向上)。
+// 返回紧凑 Float32Array(count*3) + count。容错：data 可能是 base64 串或数组，offset 从 fields 读。
+function decodeCloudToScene(m: any): { positions: Float32Array; count: number } {
+  try {
+    const raw = m?.data;
+    if (!raw) return { positions: new Float32Array(0), count: 0 };
+    const bytes = typeof raw === 'string' ? base64ToBytes(raw) : new Uint8Array(raw);
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const le = !m.is_bigendian;
+    const pointStep = m.point_step || 12;
+    const n = (m.width || 0) * (m.height || 1) || Math.floor(bytes.byteLength / pointStep);
+    if (n <= 0) return { positions: new Float32Array(0), count: 0 };
+    let ox = 0, oy = 4, oz = 8;
+    if (Array.isArray(m.fields)) {
+      for (const f of m.fields) {
+        if (f.name === 'x') ox = f.offset;
+        else if (f.name === 'y') oy = f.offset;
+        else if (f.name === 'z') oz = f.offset;
+      }
+    }
+    const cap = Math.min(n, 20000); // 与 d435iStore MAX_POINTS 一致，上限保护
+    const out = new Float32Array(cap * 3);
+    let count = 0;
+    for (let i = 0; i < n && count < cap; i++) {
+      const base = i * pointStep;
+      if (base + oz + 4 > bytes.byteLength) break;
+      const x = dv.getFloat32(base + ox, le);
+      const y = dv.getFloat32(base + oy, le);
+      const z = dv.getFloat32(base + oz, le);
+      if (!isFinite(x) || !isFinite(y) || !isFinite(z)) continue;
+      const s = rosToScene(x, y);
+      out[count * 3] = s.x;
+      out[count * 3 + 1] = z; // ROS z(高度) → scene y(向上)
+      out[count * 3 + 2] = s.z;
+      count++;
+    }
+    return { positions: out, count };
+  } catch {
+    return { positions: new Float32Array(0), count: 0 };
+  }
 }
 
 export function connect(url?: string): void {
@@ -88,6 +142,10 @@ export function disconnect(): void {
   try { useHololensStore.getState().clear(); } catch {}
   try { if (scanSub) { scanSub.unsubscribe(); scanSub = null; } } catch {}
   try { if (cameraSub) { cameraSub.unsubscribe(); cameraSub = null; } } catch {}
+  try { if (rgbSub) { rgbSub.unsubscribe(); rgbSub = null; } } catch {}
+  try { if (cloudSub) { cloudSub.unsubscribe(); cloudSub = null; } } catch {}
+  if (d435iWatchdog) { clearInterval(d435iWatchdog); d435iWatchdog = null; }
+  try { useD435iStore.getState().clear(); } catch {}
   try { if (moveBaseStatusSub) { moveBaseStatusSub.unsubscribe(); moveBaseStatusSub = null; } } catch {}
   try { if (batterySub) { batterySub.unsubscribe(); batterySub = null; } } catch {}
   try { if (amclPoseSub) { amclPoseSub.unsubscribe(); amclPoseSub = null; } } catch {}
@@ -304,6 +362,48 @@ function subscribeAll(): void {
       useScanStore.getState().setCameraImage(prefix + m.data);
     }
   });
+
+  // ── D435i 深度相机面板 ──
+  // RGB：realsense2_camera 实际发 /camera/color/...（不是 /camera/rgb/...）。仅画面，不触发车。
+  rgbSub = new Topic({
+    ros,
+    name: '/camera/color/image_raw/compressed',
+    messageType: 'sensor_msgs/CompressedImage',
+    throttle_rate: 100, // ~10Hz 够看，省带宽
+  });
+  rgbSub.subscribe((msg: unknown) => {
+    const m = msg as RosMsg_CompressedImage;
+    if (m.data) {
+      const prefix = m.format && m.format.includes('png') ? 'data:image/png;base64,' : 'data:image/jpeg;base64,';
+      useD435iStore.getState().setRgb(prefix + m.data);
+      useD435iStore.getState().touch();
+    }
+  });
+
+  // 点云：EP 的 cloud_to_map 节点发的 /d435i/cloud_map（map 帧，已 10cm 降采样 + 2Hz）。
+  cloudSub = new Topic({
+    ros,
+    name: '/d435i/cloud_map',
+    messageType: 'sensor_msgs/PointCloud2',
+    throttle_rate: 200,
+  });
+  cloudSub.subscribe((msg: unknown) => {
+    const decoded = decodeCloudToScene(msg);
+    if (decoded.count > 0) {
+      useD435iStore.getState().setCloud(decoded.positions, decoded.count);
+      useD435iStore.getState().touch();
+    }
+  });
+
+  // 看门狗：3 秒没收到任一帧 RGB/点云 → 标记未连接（驱动面板禁用态）
+  if (!d435iWatchdog) {
+    d435iWatchdog = setInterval(() => {
+      const ts = useD435iStore.getState().lastMsgTs;
+      if (ts > 0 && Date.now() - ts > STALE_MS) {
+        useD435iStore.getState().setCameraConnected(false);
+      }
+    }, 1000);
+  }
 
   moveBaseStatusSub = new Topic({
     ros,

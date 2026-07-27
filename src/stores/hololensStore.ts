@@ -25,7 +25,7 @@ export interface HololensCalibPoint1 {
   dyaw: number;
 }
 
-type Panel = 'robot' | 'hl2';
+type Panel = 'robot' | 'hl2' | 'd435i';
 
 interface HololensState {
   pose: HololensPose | null;

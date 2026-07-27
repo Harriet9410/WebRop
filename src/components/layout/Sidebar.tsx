@@ -6,6 +6,7 @@ import { SlamPanel } from '../ui/SlamPanel';
 import { SnapshotPanel } from '../ui/SnapshotPanel';
 import { HololensPanel } from '../ui/HololensPanel';
 import { MissionControl } from '../ui/MissionControl';
+import { DepthCameraPanel } from '../ui/DepthCameraPanel';
 import { useRosStore } from '../../stores/rosStore';
 import { useA11yStore } from '../../stores/a11yStore';
 import { useHololensStore } from '../../stores/hololensStore';
@@ -126,11 +127,32 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
           </div>
         )}
 
+        {/* 深度相机面板（panel='d435i'） */}
+        {panel === 'd435i' && (
+          <div className="p-3 border-b border-gray-700">
+            <DepthCameraPanel />
+          </div>
+        )}
+
         {/* Robot 面板（当前功能，选 Robot 时显示） */}
         {panel === 'robot' && (<>
         <div className="p-3 border-b border-gray-700">
           <SlamPanel />
         </div>
+
+        {/* 深度相机入口：点击进入专属界面 panel='d435i'（mock 模式下隐藏） */}
+        {!isMock && (
+          <div className="p-3 border-b border-gray-700">
+            <button
+              type="button"
+              onClick={() => useHololensStore.getState().setPanel('d435i')}
+              className="w-full text-[10px] px-2 py-1.5 rounded bg-gray-700/50 text-gray-300 hover:bg-gray-700 hover:text-white flex items-center justify-between"
+            >
+              <span>📷 {t('Depth Camera', locale)}</span>
+              <span className="text-gray-500">▶</span>
+            </button>
+          </div>
+        )}
 
         <div className="p-3 border-b border-gray-700">
           <MissionControl />

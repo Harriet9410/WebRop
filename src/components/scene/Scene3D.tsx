@@ -825,14 +825,19 @@ function HololensMarker() {
   //   之前这里是 rotation.y=+yaw 且箭头在 +Z，正负号+轴向双重反 → 朝向镜像（实测"实际南→web西"）。
   return (
     <group position={[alignedPose.x, 0, alignedPose.z]} rotation={[0, -alignedPose.yaw, 0]}>
-      {/* 地面杆 */}
-      <mesh position={[0, 0.15, 0]}>
-        <cylinderGeometry args={[0.015, 0.015, 0.3, 8]} />
-        <meshBasicMaterial color="#ff1744" depthTest={false} />
+      {/* HL2 实际占地：0.18(宽/x) × 0.28(长/z)，半透明地面片（真机尺寸）*/}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} renderOrder={998}>
+        <planeGeometry args={[0.18, 0.28]} />
+        <meshBasicMaterial color={calibrating ? '#ffeb3b' : '#ff1744'} transparent opacity={0.25} side={2} depthTest={false} />
       </mesh>
-      {/* 球（校准时变黄+变大）*/}
-      <mesh position={[0, 0.35, 0]} renderOrder={999}>
-        <sphereGeometry args={[calibrating ? 0.2 : 0.15, 16, 16]} />
+      {/* 短杆（可见性，比占地小）*/}
+      <mesh position={[0, 0.1, 0]}>
+        <cylinderGeometry args={[0.008, 0.008, 0.2, 6]} />
+        <meshBasicMaterial color={calibrating ? '#ffeb3b' : '#ff1744'} depthTest={false} />
+      </mesh>
+      {/* 小球（校准时变大）*/}
+      <mesh position={[0, 0.22, 0]} renderOrder={999}>
+        <sphereGeometry args={[calibrating ? 0.09 : 0.06, 12, 12]} />
         <meshStandardMaterial
           color={calibrating ? '#ffeb3b' : '#ff1744'}
           emissive={calibrating ? '#ffeb3b' : '#ff1744'}
@@ -840,9 +845,9 @@ function HololensMarker() {
           depthTest={false}
         />
       </mesh>
-      {/* 朝向箭头：锥尖朝 local -Z（前方），与车头同向 */}
-      <mesh position={[0, 0.35, -0.25]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={999}>
-        <coneGeometry args={[0.08, 0.2, 8]} />
+      {/* 朝向箭头：锥尖 local -Z（前方），位于前缘，缩小 */}
+      <mesh position={[0, 0.22, -0.12]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={999}>
+        <coneGeometry args={[0.04, 0.1, 6]} />
         <meshStandardMaterial color={calibrating ? '#ffeb3b' : '#ff1744'} emissive={calibrating ? '#ffeb3b' : '#ff1744'} emissiveIntensity={0.5} depthTest={false} />
       </mesh>
       {/* 标签 */}

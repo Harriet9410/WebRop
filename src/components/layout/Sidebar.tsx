@@ -136,11 +136,7 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
 
         {/* Robot 面板（当前功能，选 Robot 时显示） */}
         {panel === 'robot' && (<>
-        <div className="p-3 border-b border-gray-700">
-          <SlamPanel />
-        </div>
-
-        {/* 深度相机入口：点击进入专属界面 panel='d435i'（mock 模式下隐藏） */}
+        {/* 深度相机入口：位于 Robot/HL2 切换器下方、SLAM建图上方；点击进入专属界面 panel='d435i'（mock 下隐藏） */}
         {!isMock && (
           <div className="p-3 border-b border-gray-700">
             <button
@@ -153,6 +149,10 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
             </button>
           </div>
         )}
+
+        <div className="p-3 border-b border-gray-700">
+          <SlamPanel />
+        </div>
 
         <div className="p-3 border-b border-gray-700">
           <MissionControl />

@@ -34,7 +34,7 @@ export function PointCloudVisual() {
         <bufferAttribute attach="attributes-position" count={0} array={positions} itemSize={3} />
       </bufferGeometry>
       <pointsMaterial
-        color="#ffffff"
+        color="#ff69b4"
         size={4}
         transparent
         opacity={0.85}

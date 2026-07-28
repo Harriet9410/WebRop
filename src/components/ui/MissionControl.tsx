@@ -3,7 +3,9 @@ import { useMissionStore, parseMissionStatus } from '../../stores/missionStore';
 import { publishHrpControl } from '../../ros/connection';
 import { useRosStore } from '../../stores/rosStore';
 
-// 任务控制条：显示 hrp_follower 状态 + 暂停/继续 + 取消（发 /hrp/control）
+// 任务控制条：显示 hrp_follower 状态 + 暂停/继续 + 取消。
+// 暂停/继续只对 hrp_follower 任务有效（要它记航点，故按状态启停）。
+// 取消是“通用”的：常开 + 直接发 move_base/cancel，停任何来源（WebRop/HL2/RViz）的 move_base goal。
 export function MissionControl() {
   const status = useMissionStore((s) => s.status);
   const lastUpdate = useMissionStore((s) => s.lastUpdate);
@@ -20,7 +22,7 @@ export function MissionControl() {
     statusColor = 'text-yellow-400';
   }
 
-  const canControl = !isMock && (phase === 'running' || phase === 'paused');
+  // 暂停/继续只对 hrp_follower 任务有效；取消是通用的（常开，停任何来源的 move_base goal）
   const stop = (e: MouseEvent) => e.stopPropagation();
 
   return (
@@ -55,7 +57,8 @@ export function MissionControl() {
           type="button"
           onMouseDown={stop}
           onClick={() => publishHrpControl('cancel')}
-          disabled={!canControl}
+          disabled={isMock}
+          title="取消所有 move_base 任务（WebRop/HL2 来源都能停）"
           className="flex-1 text-xs px-2 py-1.5 rounded font-medium bg-red-600 hover:bg-red-500 disabled:bg-gray-700 disabled:text-gray-500 text-white"
         >
           ✕ 取消

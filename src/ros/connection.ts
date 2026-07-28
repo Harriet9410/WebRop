@@ -664,6 +664,8 @@ export function finishHololensCalibration(true2X: number, true2Z: number): void 
 }
 
 // 任务控制：发 /hrp/control (std_msgs/String) → hrp_follower_node 响应 pause/resume/cancel
+// 取消(cancel)额外直接发 /move_base/cancel(空 GoalID)→ 通用停所有 move_base goal，
+// 这样无论路径来自 WebRop 还是 HL2、是否经过 hrp_follower，都能停。
 export function publishHrpControl(cmd: 'pause' | 'resume' | 'cancel'): void {
   if (!ros) return;
   const topic = new Topic({ ros, name: '/hrp/control', messageType: 'std_msgs/String' });
@@ -673,6 +675,8 @@ export function publishHrpControl(cmd: 'pause' | 'resume' | 'cancel'): void {
     topic: '/hrp/control',
     summary: cmd,
   });
+  // 取消：再直接发 move_base/cancel，停掉任何来源的 move_base goal（含 HL2 直发的）
+  if (cmd === 'cancel') cancelNavGoal();
 }
 
 export function saveMap(mapName: string): void {

@@ -12,12 +12,13 @@ const MAX_POINTS = 20000; // 点数上限保护，防异常大点云撑爆内存
 interface D435iState {
   rgbImage: string | null;
   cloudPositions: Float32Array; // 长度恒为 MAX_POINTS*3，多余部分不渲染（用 cloudCount 控制 drawRange）
+  cloudColors: Float32Array | null; // H5：每点 RGB(0-1, 长度 count*3)；null=无色（用默认粉）
   cloudCount: number;
   showPointcloud: boolean;
   cameraConnected: boolean;
   lastMsgTs: number;
   setRgb: (img: string | null) => void;
-  setCloud: (positions: Float32Array, count: number) => void;
+  setCloud: (positions: Float32Array, count: number, colors?: Float32Array | null) => void;
   setShowPointcloud: (show: boolean) => void;
   touch: () => void; // 收到任一帧 RGB/点云时调用
   setCameraConnected: (c: boolean) => void;
@@ -27,17 +28,18 @@ interface D435iState {
 export const useD435iStore = create<D435iState>((set) => ({
   rgbImage: null,
   cloudPositions: new Float32Array(MAX_POINTS * 3),
+  cloudColors: null,
   cloudCount: 0,
   showPointcloud: false,
   cameraConnected: false,
   lastMsgTs: 0,
   setRgb: (rgbImage) => set({ rgbImage }),
-  setCloud: (positions, count) =>
-    set({ cloudPositions: positions, cloudCount: Math.min(count, MAX_POINTS) }),
+  setCloud: (positions, count, colors) =>
+    set({ cloudPositions: positions, cloudCount: Math.min(count, MAX_POINTS), cloudColors: colors ?? null }),
   setShowPointcloud: (showPointcloud) => set({ showPointcloud }),
   touch: () => set({ lastMsgTs: Date.now(), cameraConnected: true }),
   setCameraConnected: (cameraConnected) => set({ cameraConnected }),
-  clear: () => set({ rgbImage: null, cloudCount: 0, cameraConnected: false, lastMsgTs: 0 }),
+  clear: () => set({ rgbImage: null, cloudCount: 0, cloudColors: null, cameraConnected: false, lastMsgTs: 0 }),
 }));
 
 export const D435I_MAX_POINTS = MAX_POINTS;

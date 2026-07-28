@@ -62,7 +62,7 @@ function base64ToBytes(b64: string): Uint8Array {
 
 // PointCloud2(map 帧) → scene 坐标点：x/y 用 rosToScene 投影，高度 z 当 scene-y(向上)。
 // 返回紧凑 Float32Array(count*3) + count。容错：data 可能是 base64 串或数组，offset 从 fields 读。
-function decodeCloudToScene(m: any): { positions: Float32Array; count: number } {
+function decodeCloudToScene(m: any): { positions: Float32Array; count: number; colors: Float32Array | null } {
   try {
     const raw = m?.data;
     if (!raw) return { positions: new Float32Array(0), count: 0 };
@@ -72,16 +72,18 @@ function decodeCloudToScene(m: any): { positions: Float32Array; count: number } 
     const pointStep = m.point_step || 12;
     const n = (m.width || 0) * (m.height || 1) || Math.floor(bytes.byteLength / pointStep);
     if (n <= 0) return { positions: new Float32Array(0), count: 0 };
-    let ox = 0, oy = 4, oz = 8;
+    let ox = 0, oy = 4, oz = 8, orb = -1;
     if (Array.isArray(m.fields)) {
       for (const f of m.fields) {
         if (f.name === 'x') ox = f.offset;
         else if (f.name === 'y') oy = f.offset;
         else if (f.name === 'z') oz = f.offset;
+        else if (f.name === 'rgb') orb = f.offset;
       }
     }
     const cap = Math.min(n, 20000); // 与 d435iStore MAX_POINTS 一致，上限保护
     const out = new Float32Array(cap * 3);
+    const colors = orb >= 0 ? new Float32Array(cap * 3) : null; // H5：每点 RGB(0-1)；无 rgb 字段则 null
     let count = 0;
     for (let i = 0; i < n && count < cap; i++) {
       const base = i * pointStep;
@@ -94,9 +96,15 @@ function decodeCloudToScene(m: any): { positions: Float32Array; count: number } 
       out[count * 3] = s.x;
       out[count * 3 + 1] = z; // ROS z(高度) → scene y(向上)
       out[count * 3 + 2] = s.z;
+      if (colors && base + orb + 3 <= bytes.byteLength) {
+        // H5：rgb 字段字节 [r,g,b,*]，直接读 3 字节归一化
+        colors[count * 3] = bytes[base + orb] / 255;
+        colors[count * 3 + 1] = bytes[base + orb + 1] / 255;
+        colors[count * 3 + 2] = bytes[base + orb + 2] / 255;
+      }
       count++;
     }
-    return { positions: out, count };
+    return { positions: out, count, colors };
   } catch {
     return { positions: new Float32Array(0), count: 0 };
   }
@@ -390,7 +398,7 @@ function subscribeAll(): void {
   cloudSub.subscribe((msg: unknown) => {
     const decoded = decodeCloudToScene(msg);
     if (decoded.count > 0) {
-      useD435iStore.getState().setCloud(decoded.positions, decoded.count);
+      useD435iStore.getState().setCloud(decoded.positions, decoded.count, decoded.colors);
       useD435iStore.getState().touch();
     }
   });
